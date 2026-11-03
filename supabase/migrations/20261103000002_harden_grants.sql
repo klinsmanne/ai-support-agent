@@ -50,8 +50,10 @@ returns table (chunk_id uuid, document_id uuid, title text, slug text, content t
 language sql
 stable
 set search_path = public, extensions
--- Keep scanning the HNSW index past other tenants' rows so a tenant still gets enough candidates.
-set hnsw.iterative_scan = 'relaxed_order'
+-- Note: `set hnsw.iterative_scan` here would keep the HNSW scan going past other tenants' rows,
+-- but Supabase doesn't allow non-superusers to set it on a function. At pilot scale (tens of
+-- chunks per tenant) the 20-candidate semantic leg is unaffected; revisit with per-tenant
+-- partial indexes when a tenant's KB grows (see DECISIONS.md).
 as $$
   with semantic as (
     select c.id, row_number() over (order by c.embedding <=> p_query_embedding) as rank,

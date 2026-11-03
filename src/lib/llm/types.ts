@@ -29,7 +29,7 @@ export type ChatMessage =
        * Provider-native content of this turn, replayed verbatim to the same provider family.
        * Gemini 3 thought signatures and Claude thinking blocks must be sent back unchanged.
        */
-      replay?: { provider: ProviderId; content: unknown };
+      replay?: { provider: ProviderId; model: string; content: unknown };
     }
   | { role: "tool"; toolCallId: string; name: string; content: string; isError?: boolean };
 
@@ -42,8 +42,13 @@ export interface GenerateRequest {
   /** When set, the model must return JSON matching this schema (structured output). */
   responseSchema?: JsonSchema;
   maxOutputTokens?: number;
-  /** Hard deadline for this single call. */
+  /** Max duration of a single provider call. */
   timeoutMs: number;
+  /**
+   * Absolute deadline (epoch ms) for the whole routed request, across every fallback attempt
+   * and rate-limit wait. Lets the agent enforce one end-to-end time budget.
+   */
+  deadline?: number;
 }
 
 export interface Usage {
@@ -59,7 +64,7 @@ export interface GenerateResult {
   finishReason: "stop" | "tool_calls" | "length" | "refusal" | "other";
   usage: Usage;
   latencyMs: number;
-  replay?: { provider: ProviderId; content: unknown };
+  replay?: { provider: ProviderId; model: string; content: unknown };
 }
 
 export interface LLMProvider {

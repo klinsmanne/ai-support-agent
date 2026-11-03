@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ModelRouter } from "../llm/router.ts";
+import type { Attempt, ModelRouter } from "../llm/router.ts";
 import type { ChatMessage, GenerateResult } from "../llm/types.ts";
 import { CLASSIFIER_SYSTEM_PROMPT } from "./prompts.ts";
 
@@ -41,27 +41,27 @@ const jsonSchema = z.toJSONSchema(ClassificationSchema) as Record<string, unknow
 export async function classify(
   router: Pick<ModelRouter, "generate">,
   conversationBlock: string,
-  timeoutMs: number,
-  onCall: (r: GenerateResult, attempt: number, error?: string) => void,
+  timing: { timeoutMs: number; deadline?: number },
+  onCall: (r: GenerateResult, attempt: number, error?: string, attempts?: Attempt[]) => void,
 ): Promise<Classification> {
   const messages: ChatMessage[] = [{ role: "user", content: conversationBlock }];
   let lastError = "";
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const { result } = await router.generate({
+    const { result, attempts } = await router.generate({
       system: CLASSIFIER_SYSTEM_PROMPT,
       messages,
       responseSchema: jsonSchema,
       maxOutputTokens: 800,
-      timeoutMs,
+      ...timing,
     });
     const parsed = parseJsonLoose(result.text);
     const validated = ClassificationSchema.safeParse(parsed);
     if (validated.success) {
-      onCall(result, attempt);
+      onCall(result, attempt, undefined, attempts);
       return { ...validated.data, language: validated.data.language.toLowerCase() };
     }
     lastError = z.prettifyError(validated.error).slice(0, 500);
-    onCall(result, attempt, lastError);
+    onCall(result, attempt, lastError, attempts);
     messages.push(
       { role: "assistant", content: result.text, toolCalls: [] },
       {

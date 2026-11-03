@@ -88,7 +88,7 @@ export class AnthropicProvider implements LLMProvider {
           outputTokens: response.usage.output_tokens,
         },
         latencyMs: Date.now() - started,
-        replay: { provider: this.id, content: response.content },
+        replay: { provider: this.id, model: response.model, content: response.content },
       };
     } catch (error) {
       throw toLLMError(error, this.model);

@@ -1,5 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AgentRepo, Address, KbHit, Order, RefundRecord } from "../agent/domain.ts";
+import type {
+  AgentRepo,
+  Address,
+  KbHit,
+  Order,
+  RefundOutcome,
+  RefundRecord,
+} from "../agent/domain.ts";
 import type { TenantSettings } from "../tenants/config.ts";
 import { toVectorLiteral } from "../llm/embeddings.ts";
 
@@ -55,7 +62,9 @@ export class SupabaseRepo implements AgentRepo {
     return (data ?? []).map((o) => {
       const payments = (o.payments ?? []) as { amount_cents: number; status: string }[];
       const refunds = (o.refunds ?? []) as { amount_cents: number; status: string }[];
-      const captured = payments.filter((p) => p.status !== "refunded");
+      // Refunds are tracked in the refunds table (payment rows are never mutated), so every
+      // payment counts as captured and the balance is captured − approved/pending refunds.
+      const captured = payments;
       return {
         id: o.id,
         orderNumber: o.order_number,
@@ -73,8 +82,9 @@ export class SupabaseRepo implements AgentRepo {
         shippingAddress: o.shipping_address,
         capturedPayments: captured.length,
         capturedCents: captured.reduce((s, p) => s + p.amount_cents, 0),
+        // Matches create_refund_checked: pending refunds also reserve balance.
         refundedCents: refunds
-          .filter((r) => r.status === "approved")
+          .filter((r) => r.status === "approved" || r.status === "pending_approval")
           .reduce((s, r) => s + r.amount_cents, 0),
       };
     });
@@ -144,39 +154,28 @@ export class SupabaseRepo implements AgentRepo {
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", tenantId)
       .eq("customer_id", customerId)
+      .eq("status", "approved")
       .gte("created_at", since);
     if (error) throw new Error(`refund count: ${error.message}`);
     return count ?? 0;
   }
 
   async createRefund(tenantId: string, r: RefundRecord) {
-    const { data, error } = await this.db
-      .from("refunds")
-      .insert({
-        tenant_id: tenantId,
-        order_id: r.orderId,
-        customer_id: r.customerId,
-        ticket_id: r.ticketId,
-        amount_cents: r.amountCents,
-        reason: r.reason,
-        status: r.status,
-        decided_by: "ai",
-        idempotency_key: r.idempotencyKey,
-      })
-      .select("id")
-      .single();
-    if (error?.code === "23505") {
-      // Unique (tenant_id, idempotency_key): this exact refund already happened.
-      const { data: existing } = await this.db
-        .from("refunds")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("idempotency_key", r.idempotencyKey)
-        .single();
-      return { id: existing?.id ?? "", duplicate: true };
-    }
+    // Atomic check-and-insert under a row lock on the order (migration ..._atomic_refund.sql).
+    const { data, error } = await this.db.rpc("create_refund_checked", {
+      p_tenant_id: tenantId,
+      p_order_id: r.orderId,
+      p_customer_id: r.customerId,
+      p_ticket_id: r.ticketId,
+      p_amount_cents: r.amountCents,
+      p_reason: r.reason,
+      p_status: r.status,
+      p_idempotency_key: r.idempotencyKey,
+      p_max_refunds_30d: r.maxRefunds30d,
+    });
     if (error) throw new Error(`refund: ${error.message}`);
-    return { id: data.id, duplicate: false };
+    const row = (data as { refund_id: string | null; outcome: RefundOutcome }[])[0];
+    return { id: row?.refund_id ?? null, outcome: row?.outcome ?? "order_not_found" };
   }
 
   async updateShippingAddress(tenantId: string, orderId: string, address: Address) {

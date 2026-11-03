@@ -7,6 +7,7 @@ import type {
   Customer,
   KbHit,
   Order,
+  RefundOutcome,
   RefundRecord,
   TicketSummary,
 } from "./domain.ts";
@@ -21,7 +22,7 @@ export class MemoryRepo implements AgentRepo {
   private customers = new Map<string, Customer & { tenantId: string }>();
   private orders = new Map<string, Order & { tenantId: string }>();
   private kb = new Map<string, { slug: string; title: string; content: string }[]>();
-  readonly refunds: (RefundRecord & { tenantId: string; id: string })[] = [];
+  readonly refunds: (RefundRecord & { tenantId: string; id: string; createdAt: number })[] = [];
   readonly addressChanges: { tenantId: string; orderId: string; address: Address }[] = [];
   readonly tickets: (TicketSummary & { tenantId: string; customerId: string })[] = [];
 
@@ -171,25 +172,50 @@ export class MemoryRepo implements AgentRepo {
   }
 
   async countRefundsLast30Days(tenantId: string, customerId: string) {
-    return this.refunds.filter((r) => r.tenantId === tenantId && r.customerId === customerId)
-      .length;
+    const since = Date.now() - 30 * 86_400_000;
+    return this.refunds.filter(
+      (r) =>
+        r.tenantId === tenantId &&
+        r.customerId === customerId &&
+        r.status === "approved" &&
+        r.createdAt > since,
+    ).length;
   }
 
-  async createRefund(tenantId: string, refund: RefundRecord) {
+  /** Same rules as the create_refund_checked SQL function (idempotency, balance, frequency). */
+  async createRefund(
+    tenantId: string,
+    refund: RefundRecord,
+  ): Promise<{ id: string | null; outcome: RefundOutcome }> {
+    const order = this.orders.get(refund.orderId);
+    if (!order || order.tenantId !== tenantId || order.customerId !== refund.customerId) {
+      return { id: null, outcome: "order_not_found" };
+    }
     const existing = this.refunds.find(
       (r) => r.tenantId === tenantId && r.idempotencyKey === refund.idempotencyKey,
     );
-    if (existing) return { id: existing.id, duplicate: true };
+    if (existing) return { id: existing.id, outcome: "duplicate" };
+    if (refund.amountCents <= 0 || order.refundedCents + refund.amountCents > order.capturedCents) {
+      return { id: null, outcome: "exceeds_balance" };
+    }
+    if (
+      refund.status === "approved" &&
+      (await this.countRefundsLast30Days(tenantId, refund.customerId)) >= refund.maxRefunds30d
+    ) {
+      return { id: null, outcome: "frequency_limit" };
+    }
     const id = `refund-${this.refunds.length + 1}`;
-    this.refunds.push({ ...refund, tenantId, id });
-    const order = this.orders.get(refund.orderId);
-    if (order && order.tenantId === tenantId) order.refundedCents += refund.amountCents;
-    return { id, duplicate: false };
+    this.refunds.push({ ...refund, tenantId, id, createdAt: Date.now() });
+    order.refundedCents += refund.amountCents;
+    return { id, outcome: "created" };
   }
 
   async updateShippingAddress(tenantId: string, orderId: string, address: Address) {
     const order = this.orders.get(orderId);
     if (!order || order.tenantId !== tenantId) throw new Error("order not found");
+    // Mirrors the SQL write's status guard: never change the address of a shipped order.
+    if (!["pending", "processing"].includes(order.status))
+      throw new Error("order not updatable (already shipped)");
     order.shippingAddress = address;
     this.addressChanges.push({ tenantId, orderId, address });
   }

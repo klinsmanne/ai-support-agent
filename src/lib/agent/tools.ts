@@ -23,6 +23,8 @@ export interface ToolContext {
   settings: TenantSettings;
   /** auto_send executes approved actions; shadow/draft_only record them as proposals. */
   executeActions: boolean;
+  /** Tools allowed for THIS ticket (tenant settings minus anything removed, e.g. after injection). */
+  enabledTools: readonly ToolName[];
   repo: AgentRepo;
 }
 
@@ -32,7 +34,7 @@ export type ActionRecord =
       orderNumber: string;
       amountCents: number;
       reason: string;
-      status: "executed" | "proposed" | "pending_approval" | "denied";
+      status: "executed" | "duplicate_ignored" | "proposed" | "pending_approval" | "denied";
       policy: string[];
     }
   | {
@@ -150,13 +152,16 @@ export function toolSpecs(enabled: readonly ToolName[]): ToolSpec[] {
   }));
 }
 
-/** Validates arguments and runs a tool. Never throws for model mistakes — returns an error result. */
+/**
+ * Validates arguments and runs a tool. Model mistakes (unknown tool, bad args) become error
+ * results the model can correct; infrastructure errors (DB down) propagate to the orchestrator.
+ */
 export async function executeTool(
   name: string,
   rawArgs: unknown,
   ctx: ToolContext,
 ): Promise<ToolOutcome> {
-  if (!(name in schemas) || !ctx.settings.enabled_tools.includes(name as ToolName)) {
+  if (!(name in schemas) || !ctx.enabledTools.includes(name as ToolName)) {
     return { output: { error: `tool "${name}" is not available` }, isError: true };
   }
   const parsed = schemas[name as ToolName].safeParse(rawArgs);
@@ -354,9 +359,11 @@ async function issueRefund(
       action: { ...base, status: "proposed" },
     };
   }
-  // Idempotency: the same ticket can't refund the same order/amount/reason twice.
+  // Idempotency: one refund per order per reason, across tickets and channels (a customer
+  // emailing and chatting at once must not get paid twice). The repo re-checks balance and
+  // frequency atomically under a row lock.
   const idempotencyKey = createHash("sha256")
-    .update([ctx.ticketId, order.id, args.amount_cents, args.reason].join("|"))
+    .update([order.id, args.reason].join("|"))
     .digest("hex")
     .slice(0, 32);
   const created = await ctx.repo.createRefund(ctx.tenantId, {
@@ -367,10 +374,28 @@ async function issueRefund(
     reason: args.reason,
     status: "approved",
     idempotencyKey,
+    maxRefunds30d: ctx.settings.max_refunds_per_customer_30d,
   });
+  if (created.outcome === "duplicate") {
+    return {
+      output: {
+        status: "already_refunded",
+        note: "A refund for this order and reason already exists.",
+      },
+      action: { ...base, status: "duplicate_ignored" },
+    };
+  }
+  if (created.outcome !== "created") {
+    // Lost a race or limits changed between the policy check and the write: hand to a human.
+    return {
+      output: { status: "pending_human_approval", reasons: [created.outcome] },
+      action: { ...base, status: "pending_approval", policy: [...base.policy, created.outcome] },
+      needsHuman: "outside_policy",
+    };
+  }
   return {
     output: {
-      status: created.duplicate ? "already_refunded" : "refunded",
+      status: "refunded",
       amount: `${(args.amount_cents / 100).toFixed(2)} ${order.currency}`,
       timeline: "Refunds appear within 5–10 business days.",
     },

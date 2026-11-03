@@ -64,3 +64,18 @@ Architecture decision records (ADRs) — short, with context and trade-offs. New
 - **Observation (live run, prompt agent-v1.1.0):** "I was charged twice, this is ridiculous" was scored −0.8 and escalated on sentiment (threshold −0.7), although the spec says frustration alone should not block a within-policy refund.
 - **Change (agent-v1.2.0):** explicit sentiment anchors in the classifier prompt (−0.5 frustrated, −0.8 very angry, −1.0 abusive/distress) and Harbor & Pine's threshold moved to −0.85.
 - **Why it matters:** escalation precision is a client KPI (≥ 90% of escalations necessary). Thresholds are tenant config, so this was a config + prompt change with no code change, and it is now covered by an eval case.
+
+## ADR-012: Money moves atomically in the database, not just in application code
+
+- **Context (security review, milestone D):** policy checks ran in TypeScript, then the refund was inserted later — two tickets from one customer (email + chat at once) could both pass. The idempotency key included the ticket and amount, so it didn't dedupe across tickets.
+- **Decision:** `create_refund_checked` (SQL, `SECURITY INVOKER`, service role only) locks the order row (`FOR UPDATE`), re-checks the refundable balance and the 30-day limit, and inserts in one transaction. Idempotency is one refund per _(order, reason)_. The agent may execute at most one account action per ticket.
+- **Why:** "business rules in code" must hold under concurrency, not just in the happy path. The TypeScript policy engine stays as the explainable first gate; the database is the final one.
+
+## ADR-013: Parse links, don't pattern-match them
+
+- **Context:** the first reply validator matched `https?://host` with a regex; the review showed `https://evil.com?.allowed.com`, `www.evil.com`, markdown links without a scheme, `//evil.com` and `javascript:` all slipped through.
+- **Decision:** extract every link-like token (https URLs, markdown targets, protocol-relative, bare domains, any scheme), resolve hosts with `new URL()`, allow only `https` to allowlisted domains. Each bypass is a regression test.
+
+## ADR-014: Operational lesson — verify the live state, never trust filtered output
+
+- A migration silently failed (Supabase forbids `set hnsw.iterative_scan` on functions) and the whole transaction rolled back; an output filter hid the error and a weaker check looked green. Now every `db push` is followed by a read-only query asserting the expected objects exist (grants, functions, constraints, RLS).

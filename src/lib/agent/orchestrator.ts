@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { ToolName } from "../tenants/config.ts";
-import { detectInjection, wrapUntrusted } from "../guardrails/injection.ts";
+import { detectInjectionInThread, wrapUntrusted } from "../guardrails/injection.ts";
+import { maskDeep } from "../guardrails/pii.ts";
 import { validateReply } from "../guardrails/output.ts";
 import { RouterExhaustedError, type Attempt, type ModelRouter } from "../llm/router.ts";
 import type { ChatMessage, GenerateResult } from "../llm/types.ts";
@@ -74,6 +75,12 @@ export const DEFAULT_LIMITS: AgentLimits = { maxSteps: 8, budgetMs: 45_000, call
 
 const WRITE_TOOLS: ToolName[] = ["issue_refund", "update_order"];
 const MAX_KB_SEARCHES = 2;
+const TERMINAL_TOOLS = ["send_reply", "escalate_to_human"];
+const MAX_TURNS = 12;
+const MAX_TURN_CHARS = 6_000;
+/** Bounds fan-out within one model response and the number of money-moving actions per ticket. */
+const MAX_CALLS_PER_STEP = 4;
+const MAX_WRITES_PER_RUN = 1;
 
 export async function runAgent(
   input: AgentInput,
@@ -87,6 +94,8 @@ export async function runAgent(
 ): Promise<AgentResult> {
   const limits = { ...DEFAULT_LIMITS, ...deps.limits };
   const started = Date.now();
+  // One end-to-end deadline shared by classification, every tool-loop step and the repair call.
+  const deadline = started + limits.budgetMs;
   const trace: TraceEvent[] = [];
   const models = new Set<string>();
   const usage = { inputTokens: 0, outputTokens: 0, modelCalls: 0 };
@@ -95,7 +104,14 @@ export async function runAgent(
   let classification: Classification | null = null;
   let steps = 0;
 
-  const record = (e: Omit<TraceEvent, "seq">) => trace.push({ seq: trace.length + 1, ...e });
+  // Traces are stored and shown in the dashboard, so personal data is masked at the source.
+  const record = (e: Omit<TraceEvent, "seq">) =>
+    trace.push({
+      seq: trace.length + 1,
+      ...e,
+      input: maskDeep(e.input),
+      output: maskDeep(e.output),
+    });
   const recordModel = (name: string, r: GenerateResult, attempts?: Attempt[]) => {
     usage.inputTokens += r.usage.inputTokens;
     usage.outputTokens += r.usage.outputTokens;
@@ -159,12 +175,20 @@ export async function runAgent(
     );
   }
 
-  // 1. Deterministic injection screen on the newest customer message.
-  const latest = [...input.conversation].reverse().find((t) => t.author === "customer")?.body ?? "";
-  const heuristic = detectInjection(latest);
+  // 1. Input limits (denial-of-wallet): recent turns only, each capped in length.
+  const turns = input.conversation.slice(-MAX_TURNS).map((t) => ({
+    ...t,
+    body:
+      t.body.length > MAX_TURN_CHARS ? `${t.body.slice(0, MAX_TURN_CHARS)}\n[…truncated]` : t.body,
+  }));
+
+  // Deterministic injection screen on EVERY customer turn (an earlier message can carry it).
+  const heuristic = detectInjectionInThread(
+    turns.filter((t) => t.author === "customer").map((t) => t.body),
+  );
   record({ type: "guardrail", name: "injection_heuristic", output: heuristic });
 
-  const conversationBlock = input.conversation
+  const conversationBlock = turns
     .map((t) =>
       t.author === "customer"
         ? wrapUntrusted("customer_message", t.body)
@@ -177,9 +201,9 @@ export async function runAgent(
     classification = await classify(
       deps.classifierRouter ?? deps.router,
       conversationBlock,
-      limits.callTimeoutMs,
-      (r, attempt, error) => {
-        recordModel(`classify#${attempt}`, r);
+      { timeoutMs: limits.callTimeoutMs, deadline },
+      (r, attempt, error, attempts) => {
+        recordModel(`classify#${attempt}`, r, attempts);
         if (error) record({ type: "error", name: "classification_invalid", output: { error } });
       },
     );
@@ -187,7 +211,10 @@ export async function runAgent(
     record({
       type: "error",
       name: "classification_failed",
-      output: { error: errorMessage(error) },
+      output: {
+        error: errorMessage(error),
+        attempts: error instanceof RouterExhaustedError ? error.attempts : undefined,
+      },
     });
     return escalate(
       ["agent_error"],
@@ -256,6 +283,8 @@ export async function runAgent(
     injectionSuspected: injection.suspected,
     settings,
     executeActions: settings.rollout_mode === "auto_send",
+    // executeTool checks this filtered list, so removed write tools can't run even if called.
+    enabledTools,
     repo: deps.repo,
   };
 
@@ -270,13 +299,13 @@ export async function runAgent(
   const needsHuman = new Set<EscalationReason>();
   const seenCalls = new Set<string>();
   let searchCount = 0;
+  let writeCount = 0;
 
   try {
     while (!terminal) {
       if (steps >= limits.maxSteps)
         throw new AgentLimitError(`step limit (${limits.maxSteps}) reached`);
-      const remaining = limits.budgetMs - (Date.now() - started);
-      if (remaining < 2_000)
+      if (deadline - Date.now() < 2_000)
         throw new AgentLimitError(`time budget (${limits.budgetMs} ms) exhausted`);
       steps++;
 
@@ -285,7 +314,8 @@ export async function runAgent(
         messages,
         tools,
         maxOutputTokens: 1500,
-        timeoutMs: Math.min(limits.callTimeoutMs, remaining),
+        timeoutMs: limits.callTimeoutMs,
+        deadline,
       });
       recordModel(`agent_step#${steps}`, r, attempts);
       messages.push({
@@ -296,8 +326,9 @@ export async function runAgent(
       });
 
       if (!r.toolCalls.length) {
-        // A plain-text answer without a tool call is treated as the reply draft.
-        if (r.text)
+        // A plain-text answer is accepted as the draft only if the model finished normally;
+        // truncated ("length") or refused output must never reach a customer.
+        if (r.text && r.finishReason === "stop")
           terminal = {
             kind: "reply",
             message: r.text,
@@ -308,27 +339,56 @@ export async function runAgent(
         break;
       }
 
-      for (const call of r.toolCalls) {
+      // A terminal call (reply/escalate) is only accepted on its own: if the model batches it
+      // with other tools, the reply was written before seeing their results (e.g. "refunded!"
+      // while the refund is still pending), so it is rejected and the model must re-decide.
+      const hasWork = r.toolCalls.some((c) => !TERMINAL_TOOLS.includes(c.name));
+      for (const [index, call] of r.toolCalls.entries()) {
         const t0 = Date.now();
         // Loop guards: identical repeated calls and runaway searching are answered from code.
         const signature = `${call.name}:${JSON.stringify(call.arguments)}`;
         const repeated = seenCalls.has(signature);
-        seenCalls.add(signature);
         const searches = call.name === "search_knowledge_base" ? ++searchCount : 0;
-        const outcome = repeated
-          ? {
-              output: { error: "duplicate call — use the earlier result, then reply or escalate" },
-              isError: true,
-            }
-          : searches > MAX_KB_SEARCHES
+        const isWrite = WRITE_TOOLS.includes(call.name as ToolName);
+        const outcome =
+          index >= MAX_CALLS_PER_STEP
             ? {
-                output: {
-                  error:
-                    "search limit reached — answer with what you found, or escalate with reason low_confidence",
-                },
+                output: { error: `at most ${MAX_CALLS_PER_STEP} tool calls per step` },
                 isError: true,
               }
-            : await executeTool(call.name, call.arguments, ctx);
+            : isWrite && writeCount >= MAX_WRITES_PER_RUN
+              ? {
+                  output: {
+                    error: "only one account action per ticket — escalate if more are needed",
+                  },
+                  isError: true,
+                }
+              : hasWork && TERMINAL_TOOLS.includes(call.name)
+                ? {
+                    output: {
+                      error: `call ${call.name} alone, after reading the other tool results`,
+                    },
+                    isError: true,
+                  }
+                : repeated
+                  ? {
+                      output: {
+                        error: "duplicate call — use the earlier result, then reply or escalate",
+                      },
+                      isError: true,
+                    }
+                  : searches > MAX_KB_SEARCHES
+                    ? {
+                        output: {
+                          error:
+                            "search limit reached — answer with what you found, or escalate with reason low_confidence",
+                        },
+                        isError: true,
+                      }
+                    : await executeTool(call.name, call.arguments, ctx);
+        // Only successful calls count as "seen", so a call that hit a transient error can be retried.
+        if (!outcome.isError) seenCalls.add(signature);
+        if (isWrite && !outcome.isError) writeCount++;
         record({
           type: call.name === "search_knowledge_base" ? "retrieval" : "tool_call",
           name: call.name,
@@ -355,7 +415,14 @@ export async function runAgent(
   } catch (error) {
     const reason =
       error instanceof RouterExhaustedError ? "all models unavailable" : errorMessage(error);
-    record({ type: "error", name: "agent_loop", output: { error: reason } });
+    record({
+      type: "error",
+      name: "agent_loop",
+      output: {
+        error: reason,
+        attempts: error instanceof RouterExhaustedError ? error.attempts : undefined,
+      },
+    });
     return escalate(
       ["agent_error"],
       `Agent could not finish: ${reason}. Classification: ${classification.summary}`,
@@ -429,6 +496,8 @@ export async function runAgent(
         ],
         maxOutputTokens: 1200,
         timeoutMs: limits.callTimeoutMs,
+        // The repair gets a small grace period beyond the loop budget so a nearly-done ticket isn't lost.
+        deadline: Math.max(deadline, Date.now() + 8_000),
       });
       recordModel("reply_repair", fixed);
       // Some models answer via a send_reply call even without tools; accept its message.

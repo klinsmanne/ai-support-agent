@@ -36,7 +36,6 @@ const SYSTEM_PROMPT_MARKERS = [
 ];
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
 const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-const URL_RE = /\bhttps?:\/\/([^\s/)>\]]+)[^\s)>\]]*/gi;
 
 export function validateReply(reply: string, ctx: ReplyContext): ReplyVerdict {
   const violations: string[] = [];
@@ -60,17 +59,77 @@ export function validateReply(reply: string, ctx: ReplyContext): ReplyVerdict {
     }
   }
 
-  for (const match of text.matchAll(URL_RE)) {
-    // Sentence punctuation right after a URL ("…carrier.com.") is not part of the host.
-    const host = match[1]
-      .toLowerCase()
-      .split(":")[0]
-      .replace(/[.,;!?]+$/, "");
-    const allowed = ctx.allowedLinkDomains.some((d) => host === d || host.endsWith(`.${d}`));
-    if (!allowed) {
-      violations.push(`unapproved_link:${host}`);
+  for (const problem of linkProblems(text, ctx.allowedLinkDomains)) violations.push(problem);
+
+  return { ok: violations.length === 0, violations: [...new Set(violations)] };
+}
+
+/** Any scheme other than https is blocked outright (javascript:, data:, http:, ftp:, mailto: …). */
+const SCHEME = /\b([a-z][a-z0-9+.-]{1,15}):(?=\/\/|[^\s\d])/gi;
+const BLOCKED_SCHEMES = new Set([
+  "http",
+  "javascript",
+  "data",
+  "vbscript",
+  "file",
+  "ftp",
+  "blob",
+  "mailto",
+  "tel",
+  "sms",
+]);
+/** Markdown link targets: [text](target) */
+const MD_TARGET = /\]\(\s*<?([^)\s>]+)/g;
+/** Protocol-relative links: //host/path */
+const PROTO_RELATIVE = /(?:^|[\s("'<[])\/\/([^\s/?#)>\]]+)/g;
+/** Bare domains such as www.evil.com or evil.com/login (TLD of 2+ letters). */
+const BARE_DOMAIN =
+  /(?:^|[^\w@./-])((?:[a-z0-9-]+\.)+[a-z]{2,})(?=[/:?#]|[\s)>\],;!"']|\.(?:\s|$)|$)/gi;
+
+/**
+ * Finds every link-like thing in the reply and checks its parsed hostname against the allowlist.
+ * Parsing with URL() means "https://evil.com?.allowed.com" resolves to host evil.com.
+ */
+function linkProblems(text: string, allowedDomains: string[]): string[] {
+  const problems: string[] = [];
+  const allowedHost = (host: string) =>
+    allowedDomains.some((d) => host === d || host.endsWith(`.${d}`));
+  const checkHost = (raw: string) => {
+    const host = raw.toLowerCase().replace(/[.,;!?]+$/, "");
+    if (!allowedHost(host)) problems.push(`unapproved_link:${host}`);
+  };
+
+  for (const m of text.matchAll(SCHEME)) {
+    const scheme = m[1].toLowerCase();
+    // Only https links may reach customers; plain http, javascript:, data: etc. are refused.
+    if (scheme !== "https" && BLOCKED_SCHEMES.has(scheme))
+      problems.push(`blocked_scheme:${scheme}`);
+  }
+  for (const m of text.matchAll(/\bhttps:\/\/[^\s<>"')\]]+/gi)) {
+    try {
+      checkHost(new URL(m[0].replace(/[.,;!?]+$/, "")).hostname);
+    } catch {
+      problems.push("malformed_link");
     }
   }
-
-  return { ok: violations.length === 0, violations };
+  for (const m of text.matchAll(MD_TARGET)) {
+    const target = m[1];
+    if (/^https:\/\//i.test(target)) continue; // already checked above
+    if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue; // scheme handled above
+    try {
+      checkHost(
+        new URL(target.startsWith("//") ? `https:${target}` : `https://${target}`).hostname,
+      );
+    } catch {
+      problems.push("malformed_link");
+    }
+  }
+  for (const m of text.matchAll(PROTO_RELATIVE)) checkHost(m[1]);
+  for (const m of text.matchAll(BARE_DOMAIN)) {
+    const host = m[1];
+    // Skip hosts that are part of an https URL or email (already handled) and plain file names.
+    if (/\.(md|txt|pdf|png|jpg|jpeg|csv|json)$/i.test(host)) continue;
+    checkHost(host);
+  }
+  return problems;
 }

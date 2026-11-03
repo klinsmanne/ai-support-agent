@@ -36,7 +36,7 @@ export class GeminiProvider implements LLMProvider {
     const started = Date.now();
     const body: Record<string, unknown> = {
       systemInstruction: { parts: [{ text: req.system }] },
-      contents: toGeminiContents(req.messages),
+      contents: toGeminiContents(req.messages, this.model),
       generationConfig: {
         maxOutputTokens: req.maxOutputTokens ?? 2048,
         // Support replies need speed more than deep reasoning; the eval suite validates quality.
@@ -115,12 +115,18 @@ export class GeminiProvider implements LLMProvider {
           (json.usageMetadata?.thoughtsTokenCount ?? 0),
       },
       latencyMs: Date.now() - started,
-      replay: { provider: this.id, content: parts },
+      replay: { provider: this.id, model: this.model, content: parts },
     };
   }
 }
 
-function toGeminiContents(messages: ChatMessage[]): GeminiContent[] {
+/**
+ * Documented placeholder for function calls that Gemini didn't produce itself (e.g. a turn served by
+ * Groq after a fallback). Without a signature Gemini 3 rejects the history with a 400.
+ */
+const FOREIGN_SIGNATURE = "skip_thought_signature_validator";
+
+function toGeminiContents(messages: ChatMessage[], model: string): GeminiContent[] {
   const contents: GeminiContent[] = [];
   for (const m of messages) {
     if (m.role === "user") {
@@ -128,12 +134,14 @@ function toGeminiContents(messages: ChatMessage[]): GeminiContent[] {
     } else if (m.role === "assistant") {
       // Replay native parts so thought signatures on function calls survive (required by Gemini 3).
       const parts =
-        m.replay?.provider === "gemini"
+        // Signatures are only valid for the model that produced them.
+        m.replay?.provider === "gemini" && m.replay.model === model
           ? (m.replay.content as GeminiPart[])
           : [
               ...(m.content ? [{ text: m.content }] : []),
               ...m.toolCalls.map((c) => ({
                 functionCall: { id: c.id, name: c.name, args: c.arguments },
+                thoughtSignature: FOREIGN_SIGNATURE,
               })),
             ];
       contents.push({ role: "model", parts });

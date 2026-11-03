@@ -97,7 +97,8 @@ function toOpenAIMessages(messages: ChatMessage[]) {
     if (m.role === "assistant") {
       return {
         role: "assistant",
-        content: m.content || null,
+        // Groq rejects null content on an assistant turn without tool calls.
+        content: m.content || (m.toolCalls.length ? null : ""),
         ...(m.toolCalls.length
           ? {
               tool_calls: m.toolCalls.map((c) => ({

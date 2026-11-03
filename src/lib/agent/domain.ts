@@ -69,7 +69,12 @@ export interface RefundRecord {
   reason: string;
   status: "approved" | "pending_approval";
   idempotencyKey: string;
+  /** Re-checked atomically by the repository together with the refundable balance. */
+  maxRefunds30d: number;
 }
+
+export type RefundOutcome =
+  "created" | "duplicate" | "exceeds_balance" | "frequency_limit" | "order_not_found";
 
 /** Tenant-scoped data access used by the agent. Every method takes tenantId explicitly. */
 export interface AgentRepo {
@@ -84,7 +89,10 @@ export interface AgentRepo {
   ): Promise<TicketSummary[]>;
   searchKb(tenantId: string, query: string, k: number): Promise<KbHit[]>;
   countRefundsLast30Days(tenantId: string, customerId: string): Promise<number>;
-  createRefund(tenantId: string, refund: RefundRecord): Promise<{ id: string; duplicate: boolean }>;
+  createRefund(
+    tenantId: string,
+    refund: RefundRecord,
+  ): Promise<{ id: string | null; outcome: RefundOutcome }>;
   updateShippingAddress(tenantId: string, orderId: string, address: Address): Promise<void>;
   /** Public sample order numbers for the demo note shown to unknown senders. */
   sampleOrderNumbers(tenantId: string): Promise<string[]>;

@@ -19,6 +19,12 @@ const RULES: Rule[] = [
       /\b(ignore|disregard|forget|override|bypass)\b[^.\n]{0,40}\b(previous|prior|above|earlier|all|your|system)\b[^.\n]{0,30}\b(instructions?|rules?|prompts?|guidelines?|polic(y|ies))\b/i,
   },
   {
+    id: "override_paraphrase",
+    weight: 3,
+    pattern:
+      /\b(disregard|ignore|forget)\b[^.\n]{0,20}\b(what|everything|anything)\b[^.\n]{0,20}\b(you were|you've been|you have been|you are) (told|instructed|programmed|trained)\b|\bnew (instructions|rules) (for you|follow)\b/i,
+  },
+  {
     id: "role_reassignment",
     weight: 2,
     pattern:
@@ -65,11 +71,69 @@ export interface InjectionVerdict {
   signals: string[];
 }
 
+/** Common look-alike letters (Cyrillic/Greek) mapped to Latin so "іgnore" reads as "ignore". */
+const CONFUSABLES: Record<string, string> = {
+  а: "a",
+  е: "e",
+  о: "o",
+  р: "p",
+  с: "c",
+  у: "y",
+  х: "x",
+  і: "i",
+  ј: "j",
+  ѕ: "s",
+  һ: "h",
+  ԁ: "d",
+  ɡ: "g",
+  А: "A",
+  В: "B",
+  Е: "E",
+  К: "K",
+  М: "M",
+  Н: "H",
+  О: "O",
+  Р: "P",
+  С: "C",
+  Т: "T",
+  Х: "X",
+  І: "I",
+  α: "a",
+  ο: "o",
+  ρ: "p",
+  ν: "v",
+  ι: "i",
+  κ: "k",
+  τ: "t",
+  Ο: "O",
+  Α: "A",
+  Ε: "E",
+};
+
+/** Normalizes obfuscation: compatibility forms, invisible format characters, look-alike letters. */
+export function normalizeForScreening(text: string): string {
+  return text
+    .normalize("NFKC")
+    .replace(/\p{Cf}/gu, "") // zero-width, soft hyphen, bidi controls, BOM …
+    .replace(/[^\x00-\x7F]/g, (ch) => CONFUSABLES[ch] ?? ch);
+}
+
 export function detectInjection(text: string, threshold = 3): InjectionVerdict {
-  const normalized = text.normalize("NFKC").replace(/[​-‏⁠﻿]/g, ""); // strip zero-width tricks
+  const normalized = normalizeForScreening(text);
   const signals = RULES.filter((r) => r.pattern.test(normalized)).map((r) => r.id);
   const score = RULES.filter((r) => signals.includes(r.id)).reduce((s, r) => s + r.weight, 0);
   return { suspected: score >= threshold, score, signals };
+}
+
+/** Screens every customer turn of a thread: an injection in an earlier message still counts. */
+export function detectInjectionInThread(customerTurns: string[]): InjectionVerdict {
+  const verdicts = customerTurns.map((t) => detectInjection(t));
+  const worst = verdicts.reduce((a, b) => (b.score > a.score ? b : a), {
+    suspected: false,
+    score: 0,
+    signals: [] as string[],
+  });
+  return { ...worst, signals: [...new Set(verdicts.flatMap((v) => v.signals))] };
 }
 
 /**

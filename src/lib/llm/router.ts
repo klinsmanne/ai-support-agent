@@ -6,7 +6,7 @@ export interface Attempt {
   ok: boolean;
   latencyMs: number;
   error?: { kind: string; message: string; status?: number };
-  skipped?: "circuit_open";
+  skipped?: "circuit_open" | "deadline";
 }
 
 export interface RoutedResult {
@@ -15,6 +15,9 @@ export interface RoutedResult {
 }
 
 /** Cool-down per error kind: how long a failing model is skipped before being retried. */
+/** An attempt with less time than this left isn't worth starting. */
+const MIN_ATTEMPT_MS = 1_500;
+
 const COOLDOWN_MS: Record<string, number> = {
   rate_limit: 60_000,
   unavailable: 30_000,
@@ -56,7 +59,9 @@ export class ModelRouter {
       const tried = error.attempts.filter((a) => !a.skipped);
       if (!tried.length || !tried.every((a) => a.error?.kind === "rate_limit")) throw error;
       const hinted = Math.min(...tried.map((a) => retryHintMs(a.error?.message ?? "") ?? 5_000));
-      const waitMs = Math.min(hinted, this.maxRateLimitWaitMs, Math.max(req.timeoutMs - 1_000, 0));
+      // Only wait if the wait plus a minimal call still fits before the deadline.
+      const left = (req.deadline ?? this.now() + req.timeoutMs) - this.now() - MIN_ATTEMPT_MS;
+      const waitMs = Math.min(hinted, this.maxRateLimitWaitMs, Math.max(left, 0));
       if (waitMs <= 0) throw error;
       await this.sleep(waitMs);
       this.openUntil.clear(); // second pass ignores circuits: everyone was just rate-limited
@@ -90,9 +95,23 @@ export class ModelRouter {
         });
         continue;
       }
+      const remaining = (req.deadline ?? Infinity) - this.now();
+      if (remaining < MIN_ATTEMPT_MS) {
+        attempts.push({
+          provider: provider.id,
+          model: provider.model,
+          ok: false,
+          latencyMs: 0,
+          skipped: "deadline",
+        });
+        break;
+      }
       const started = this.now();
       try {
-        const result = await provider.generate(req);
+        const result = await provider.generate({
+          ...req,
+          timeoutMs: Math.min(req.timeoutMs, remaining),
+        });
         this.openUntil.delete(key);
         attempts.push({
           provider: provider.id,

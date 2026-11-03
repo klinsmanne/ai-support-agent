@@ -254,3 +254,41 @@ describe("knowledge base retrieval", () => {
     ).rejects.toThrow(/permission denied/);
   });
 });
+
+describe("create_refund_checked (atomic refund)", () => {
+  const refund = (key: string, amount: number, max = 5) =>
+    db.query<{ refund_id: string | null; outcome: string }>(
+      `select r.* from public.orders o,
+         public.create_refund_checked($1, o.id, o.customer_id, null, $2, 'duplicate_charge', 'approved', $3, $4) r
+       where o.tenant_id = $1 and o.order_number = '1051'`,
+      [HARBOR, amount, key, max],
+    );
+
+  it("creates, then dedupes on the same idempotency key", async () => {
+    expect((await refund("k-a", 6400)).rows[0].outcome).toBe("created");
+    expect((await refund("k-a", 6400)).rows[0].outcome).toBe("duplicate");
+  });
+
+  it("refuses to refund more than was captured, whatever the caller claims", async () => {
+    // 1051 has two captured charges of 6400 = 12800 total; 6400 already refunded above.
+    expect((await refund("k-b", 6401)).rows[0].outcome).toBe("exceeds_balance");
+    expect((await refund("k-c", 6400)).rows[0].outcome).toBe("created");
+    expect((await refund("k-d", 1)).rows[0].outcome).toBe("exceeds_balance");
+  });
+
+  it("enforces the 30-day frequency limit inside the transaction", async () => {
+    await db.exec(`delete from public.refunds`);
+    expect((await refund("k-e", 100, 1)).rows[0].outcome).toBe("created");
+    expect((await refund("k-f", 100, 1)).rows[0].outcome).toBe("frequency_limit");
+  });
+
+  it("is not callable by dashboard users", async () => {
+    await expect(
+      asUser(
+        db,
+        HARBOR_OWNER,
+        `select public.create_refund_checked('${HARBOR}', gen_random_uuid(), gen_random_uuid(), null, 1, 'x', 'approved', 'k', 5)`,
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+});
