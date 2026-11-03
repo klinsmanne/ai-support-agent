@@ -27,6 +27,8 @@ describe("protect-secrets hook", () => {
     ["Read", { file_path: "/app/.env.example" }],
     ["Edit", { file_path: "/app/src/app/page.tsx" }],
     ["Bash", { command: "npm test" }],
+    // Code identifiers that merely look like key files are not secret-file access.
+    ["Bash", { command: "node -e 'const k = c.key; const p = cert.pem'" }],
   ])("allows %s on normal files: %j", (tool_name, tool_input) => {
     expect(runHook({ tool_name, tool_input })).toBe(0);
   });
