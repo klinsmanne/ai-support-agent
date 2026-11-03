@@ -52,3 +52,9 @@ Architecture decision records (ADRs) — short, with context and trade-offs. New
 1. **Database:** RLS on every table; composite `(tenant_id, id)` foreign keys make cross-tenant references impossible even for the service role.
 2. **Application:** every repository function takes `tenantId` explicitly; retrieval (`match_kb_chunks`) requires a tenant id and is callable only by the backend.
 3. **Tests:** PGlite runs the real migrations in CI and proves members of one tenant cannot read or modify another's data.
+
+## ADR-010: Model fallback chain with short timeouts (observed, not assumed)
+
+- **Observation (2026-11-03, live probe):** `gemini-3.8-flash` and `gemini-3.7-flash` returned 503 "high demand"; one request to 3.8 hung > 2 minutes without a timeout. `gemini-3.6-flash` (1.4 s), `gemini-3.5-flash` (2.5 s) and `gemini-3.5-flash-lite` (0.6 s) answered.
+- **Decision:** the provider layer tries an ordered chain — Gemini 3.8 Flash → 3.6 Flash → 3.5 Flash-Lite → Groq — with a per-call timeout and a circuit breaker that skips a model for a cool-down after repeated 503/429s. The final order is chosen from eval results (milestone I).
+- **Why:** free tiers have no SLA; resilience has to come from the architecture.
