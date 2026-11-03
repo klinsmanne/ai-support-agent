@@ -18,7 +18,9 @@
     "llm:smoke": "tsx scripts/llm-smoke.ts",
     "kb:embed": "tsx scripts/kb-embed.ts",
     "agent:try": "tsx scripts/agent-try.ts",
-    "kb:search": "tsx scripts/kb-search.ts"
+    "kb:search": "tsx scripts/kb-search.ts",
+    "gmail:auth": "tsx scripts/gmail-auth.ts",
+    "email:poll": "tsx --conditions=react-server scripts/email-poll.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",
