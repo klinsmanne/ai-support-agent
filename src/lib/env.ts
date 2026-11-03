@@ -15,6 +15,7 @@ const serverEnvSchema = z.object({
   // Model provider selection: switch models with one env var.
   LLM_PROVIDER: z.enum(["gemini", "groq", "anthropic"]).default("gemini"),
   LLM_MODEL: optional(z.string()),
+  LLM_CHAIN: optional(z.string()),
   GEMINI_API_KEY: optional(z.string().min(1)),
   GROQ_API_KEY: optional(z.string().min(1)),
   ANTHROPIC_API_KEY: optional(z.string().min(1)),

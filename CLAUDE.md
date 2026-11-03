@@ -38,7 +38,12 @@ Next.js 16 (App Router, TypeScript, Tailwind) on Vercel · Supabase Postgres + p
 - `npm run check` — lint + type-check + format check + tests (run before every commit)
 - `npm run lint` / `npm run typecheck` / `npm test` / `npm run format`
 - `npm run build` — production build
-- Evals, seeding, and deploy commands are added in later milestones (see PROGRESS.md).
+- `npm run secrets status|sync` — Keychain-backed secrets; `sync` writes the git-ignored local env file
+- `npm run seed:build` — regenerate `supabase/seed.sql` from `tenants/*` (CI checks it's in sync)
+- `supabase db push --remote --include-seed --yes` — apply migrations + seed (needs `SUPABASE_DB_PASSWORD` from Keychain)
+- `npm run kb:embed` — embed new/changed KB chunks · `npm run kb:search -- "<q>" [slug]` — live retrieval check
+- `npm run llm:smoke` — live tool-calling round trip per model · `npm run agent:try [-- <name>]` — live agent on spec scenarios
+- Scripts load env themselves (`scripts/load-env.ts`); never put the env file name on a command line (the secret hook blocks it).
 
 ## Coding conventions
 

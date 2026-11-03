@@ -52,3 +52,30 @@ Architecture decision records (ADRs) — short, with context and trade-offs. New
 1. **Database:** RLS on every table; composite `(tenant_id, id)` foreign keys make cross-tenant references impossible even for the service role.
 2. **Application:** every repository function takes `tenantId` explicitly; retrieval (`match_kb_chunks`) requires a tenant id and is callable only by the backend.
 3. **Tests:** PGlite runs the real migrations in CI and proves members of one tenant cannot read or modify another's data.
+
+## ADR-010: Model fallback chain with short timeouts (observed, not assumed)
+
+- **Observation (2026-11-03, live probe):** `gemini-3.8-flash` and `gemini-3.7-flash` returned 503 "high demand"; one request to 3.8 hung > 2 minutes without a timeout. `gemini-3.6-flash` (1.4 s), `gemini-3.5-flash` (2.5 s) and `gemini-3.5-flash-lite` (0.6 s) answered.
+- **Decision:** the provider layer tries an ordered chain — Gemini 3.8 Flash → 3.6 Flash → 3.5 Flash-Lite → Groq — with a per-call timeout and a circuit breaker that skips a model for a cool-down after repeated 503/429s. The final order is chosen from eval results (milestone I).
+- **Why:** free tiers have no SLA; resilience has to come from the architecture.
+
+## ADR-011: Calibrated sentiment anchors (first eval-driven prompt change)
+
+- **Observation (live run, prompt agent-v1.1.0):** "I was charged twice, this is ridiculous" was scored −0.8 and escalated on sentiment (threshold −0.7), although the spec says frustration alone should not block a within-policy refund.
+- **Change (agent-v1.2.0):** explicit sentiment anchors in the classifier prompt (−0.5 frustrated, −0.8 very angry, −1.0 abusive/distress) and Harbor & Pine's threshold moved to −0.85.
+- **Why it matters:** escalation precision is a client KPI (≥ 90% of escalations necessary). Thresholds are tenant config, so this was a config + prompt change with no code change, and it is now covered by an eval case.
+
+## ADR-012: Money moves atomically in the database, not just in application code
+
+- **Context (security review, milestone D):** policy checks ran in TypeScript, then the refund was inserted later — two tickets from one customer (email + chat at once) could both pass. The idempotency key included the ticket and amount, so it didn't dedupe across tickets.
+- **Decision:** `create_refund_checked` (SQL, `SECURITY INVOKER`, service role only) locks the order row (`FOR UPDATE`), re-checks the refundable balance and the 30-day limit, and inserts in one transaction. Idempotency is one refund per _(order, reason)_. The agent may execute at most one account action per ticket.
+- **Why:** "business rules in code" must hold under concurrency, not just in the happy path. The TypeScript policy engine stays as the explainable first gate; the database is the final one.
+
+## ADR-013: Parse links, don't pattern-match them
+
+- **Context:** the first reply validator matched `https?://host` with a regex; the review showed `https://evil.com?.allowed.com`, `www.evil.com`, markdown links without a scheme, `//evil.com` and `javascript:` all slipped through.
+- **Decision:** extract every link-like token (https URLs, markdown targets, protocol-relative, bare domains, any scheme), resolve hosts with `new URL()`, allow only `https` to allowlisted domains. Each bypass is a regression test.
+
+## ADR-014: Operational lesson — verify the live state, never trust filtered output
+
+- A migration silently failed (Supabase forbids `set hnsw.iterative_scan` on functions) and the whole transaction rolled back; an output filter hid the error and a weaker check looked green. Now every `db push` is followed by a read-only query asserting the expected objects exist (grants, functions, constraints, RLS).
