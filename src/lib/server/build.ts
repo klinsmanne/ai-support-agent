@@ -6,6 +6,7 @@ import { embedTexts } from "../llm/embeddings.ts";
 import { createClassifierRouter, createRouter } from "../llm/index.ts";
 import type { PipelineDeps } from "../pipeline/ingest.ts";
 import { SupabaseStore } from "../pipeline/supabase-store.ts";
+import { SupabaseChatStore, type ChatStore } from "../channels/chat/store.ts";
 
 /**
  * Composition root: builds every server dependency from validated env vars. The app uses the
@@ -15,6 +16,7 @@ export interface Container {
   env: ServerEnv;
   deps: PipelineDeps;
   store: SupabaseStore;
+  chat: ChatStore;
   gmail: GmailClient | null;
   defaultTenantId: () => Promise<string>;
 }
@@ -53,6 +55,7 @@ export function buildContainer(source: Record<string, string | undefined>): Cont
   return {
     env,
     store,
+    chat: new SupabaseChatStore(db),
     gmail,
     deps: {
       store,
