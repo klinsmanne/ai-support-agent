@@ -58,3 +58,9 @@ Architecture decision records (ADRs) — short, with context and trade-offs. New
 - **Observation (2026-11-03, live probe):** `gemini-3.8-flash` and `gemini-3.7-flash` returned 503 "high demand"; one request to 3.8 hung > 2 minutes without a timeout. `gemini-3.6-flash` (1.4 s), `gemini-3.5-flash` (2.5 s) and `gemini-3.5-flash-lite` (0.6 s) answered.
 - **Decision:** the provider layer tries an ordered chain — Gemini 3.8 Flash → 3.6 Flash → 3.5 Flash-Lite → Groq — with a per-call timeout and a circuit breaker that skips a model for a cool-down after repeated 503/429s. The final order is chosen from eval results (milestone I).
 - **Why:** free tiers have no SLA; resilience has to come from the architecture.
+
+## ADR-011: Calibrated sentiment anchors (first eval-driven prompt change)
+
+- **Observation (live run, prompt agent-v1.1.0):** "I was charged twice, this is ridiculous" was scored −0.8 and escalated on sentiment (threshold −0.7), although the spec says frustration alone should not block a within-policy refund.
+- **Change (agent-v1.2.0):** explicit sentiment anchors in the classifier prompt (−0.5 frustrated, −0.8 very angry, −1.0 abusive/distress) and Harbor & Pine's threshold moved to −0.85.
+- **Why it matters:** escalation precision is a client KPI (≥ 90% of escalations necessary). Thresholds are tenant config, so this was a config + prompt change with no code change, and it is now covered by an eval case.

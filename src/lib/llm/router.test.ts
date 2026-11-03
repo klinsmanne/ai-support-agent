@@ -81,12 +81,47 @@ describe("ModelRouter", () => {
   });
 });
 
+describe("rate-limit wait", () => {
+  it("waits for the provider's retry hint and retries once when every model is rate-limited", async () => {
+    let calls = 0;
+    const flaky = fake("a", () => {
+      if (++calls === 1)
+        throw new LLMError("rate_limit", "Quota exceeded. Please retry in 1.5s.", "mock", "a");
+      return ok("a");
+    });
+    const waits: number[] = [];
+    const router = new ModelRouter([flaky], Date.now, 8_000, async (ms) => void waits.push(ms));
+    const { result, attempts } = await router.generate({ ...req, timeoutMs: 10_000 });
+    expect(result.model).toBe("a");
+    expect(waits).toEqual([1500]); // the provider's hint, under both the cap and the request timeout
+    expect(attempts.some((x) => x.error?.kind === "rate_limit_wait")).toBe(true);
+  });
+
+  it("does not wait when failures aren't rate limits", async () => {
+    const a = fake("a", fail("unavailable", "a"));
+    const waits: number[] = [];
+    await expect(
+      new ModelRouter([a], Date.now, 8_000, async (ms) => void waits.push(ms)).generate(req),
+    ).rejects.toThrow();
+    expect(waits).toEqual([]);
+  });
+
+  it("parses retry hints from Gemini and Groq messages", async () => {
+    const { retryHintMs } = await import("./router");
+    expect(retryHintMs("Please retry in 12.3s.")).toBe(12_300);
+    expect(retryHintMs("Rate limit reached. Please try again in 2.5s")).toBe(2_500);
+    expect(retryHintMs("try again in 750ms")).toBe(750);
+    expect(retryHintMs("nothing here")).toBeNull();
+  });
+});
+
 describe("buildChain", () => {
   it("orders Gemini models first, then Groq, skipping providers without keys", () => {
     const chain = buildChain({ LLM_PROVIDER: "gemini", GEMINI_API_KEY: "g", GROQ_API_KEY: "q" });
     expect(chain.map((p) => `${p.id}:${p.model}`)).toEqual([
       "gemini:gemini-3.8-flash",
       "gemini:gemini-3.6-flash",
+      "gemini:gemini-3.5-flash",
       "gemini:gemini-3.5-flash-lite",
       "groq:openai/gpt-oss-120b",
     ]);

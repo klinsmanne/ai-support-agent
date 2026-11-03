@@ -5,7 +5,7 @@ import { ModelRouter } from "./router.ts";
 import type { LLMProvider } from "./types.ts";
 
 export const DEFAULT_MODELS = {
-  gemini: ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"],
+  gemini: ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite"],
   groq: ["openai/gpt-oss-120b"],
   anthropic: ["claude-opus-5-5"],
 } as const;
@@ -60,8 +60,28 @@ export function buildChain(cfg: LLMConfig): LLMProvider[] {
     .filter((p): p is LLMProvider => p !== null);
 }
 
+/** Max time a request waits when every model is rate-limited before giving up (free tiers). */
+const RATE_LIMIT_WAIT_MS = 8_000;
+
 export function createRouter(cfg: LLMConfig): ModelRouter {
-  return new ModelRouter(buildChain(cfg));
+  return new ModelRouter(buildChain(cfg), Date.now, RATE_LIMIT_WAIT_MS);
+}
+
+/**
+ * Classification is a small structured-output call, so it goes to the fastest model first and a
+ * different Groq model than the agent. Free-tier quotas are per model, so splitting the two call
+ * types across models roughly doubles throughput before anything is rate-limited.
+ */
+export function createClassifierRouter(cfg: LLMConfig): ModelRouter {
+  const chain = buildChain({
+    ...cfg,
+    LLM_CHAIN:
+      cfg.LLM_CHAIN ??
+      (cfg.LLM_PROVIDER === "anthropic"
+        ? "anthropic:claude-haiku-5-5,gemini:gemini-3.5-flash-lite,groq:openai/gpt-oss-20b"
+        : "gemini:gemini-3.5-flash-lite,gemini:gemini-3.1-flash-lite,groq:openai/gpt-oss-20b,gemini:gemini-3.6-flash"),
+  });
+  return new ModelRouter(chain.length ? chain : buildChain(cfg), Date.now, RATE_LIMIT_WAIT_MS);
 }
 
 export * from "./types.ts";

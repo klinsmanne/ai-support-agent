@@ -7,7 +7,7 @@
     "rollout_mode": "auto_send",
     "refund_auto_approve_limit_cents": 7500,
     "max_refunds_per_customer_30d": 2,
-    "escalate_on_negative_sentiment_below": -0.7,
+    "escalate_on_negative_sentiment_below": -0.85,
     "min_confidence_to_act": 0.7,
     "enabled_tools": [
       "get_customer",

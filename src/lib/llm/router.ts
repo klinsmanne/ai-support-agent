@@ -33,6 +33,13 @@ export class ModelRouter {
   constructor(
     private readonly chain: LLMProvider[],
     private readonly now: () => number = Date.now,
+    /**
+     * When every model fails with rate limits, wait this long at most (using the provider's
+     * "retry in Ns" hint) and try the chain once more. 0 disables waiting (tests).
+     */
+    private readonly maxRateLimitWaitMs = 0,
+    private readonly sleep: (ms: number) => Promise<void> = (ms) =>
+      new Promise((r) => setTimeout(r, ms)),
   ) {
     if (!chain.length) throw new Error("ModelRouter needs at least one provider");
   }
@@ -42,7 +49,31 @@ export class ModelRouter {
   }
 
   async generate(req: GenerateRequest): Promise<RoutedResult> {
-    const attempts: Attempt[] = [];
+    try {
+      return await this.pass(req, []);
+    } catch (error) {
+      if (!(error instanceof RouterExhaustedError) || !this.maxRateLimitWaitMs) throw error;
+      const tried = error.attempts.filter((a) => !a.skipped);
+      if (!tried.length || !tried.every((a) => a.error?.kind === "rate_limit")) throw error;
+      const hinted = Math.min(...tried.map((a) => retryHintMs(a.error?.message ?? "") ?? 5_000));
+      const waitMs = Math.min(hinted, this.maxRateLimitWaitMs, Math.max(req.timeoutMs - 1_000, 0));
+      if (waitMs <= 0) throw error;
+      await this.sleep(waitMs);
+      this.openUntil.clear(); // second pass ignores circuits: everyone was just rate-limited
+      return this.pass(req, [
+        ...error.attempts,
+        {
+          provider: "router",
+          model: "-",
+          ok: false,
+          latencyMs: waitMs,
+          error: { kind: "rate_limit_wait", message: `waited ${waitMs} ms` },
+        },
+      ]);
+    }
+  }
+
+  private async pass(req: GenerateRequest, attempts: Attempt[]): Promise<RoutedResult> {
     let lastError: LLMError | undefined;
 
     for (const [index, provider] of this.chain.entries()) {
@@ -89,6 +120,14 @@ export class ModelRouter {
     }
     throw new RouterExhaustedError(attempts, lastError);
   }
+}
+
+/** Parses provider retry hints such as "Please retry in 12.3s" (Gemini) or "try again in 2.5s" (Groq). */
+export function retryHintMs(message: string): number | null {
+  const m = /(?:retry|try again) in ([\d.]+)\s*(ms|s)\b/i.exec(message);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) ? Math.ceil(m[2].toLowerCase() === "ms" ? n : n * 1000) : null;
 }
 
 export class RouterExhaustedError extends Error {

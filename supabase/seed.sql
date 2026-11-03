@@ -215,7 +215,7 @@ insert into public.tenant_settings (tenant_id, rollout_mode, refund_auto_approve
   escalate_on_negative_sentiment_below, min_confidence_to_act, enabled_tools, brand_name, brand_voice, supported_languages,
   allowed_link_domains, support_email, csat_enabled, daily_ticket_cap, max_ai_replies_per_thread, retention_days)
 values ('11fc6851-09e5-5cff-91e4-5a5f38a515c8', 'auto_send', 7500, 2,
-  -0.7, 0.7, array['get_customer', 'get_orders', 'get_ticket_history', 'search_knowledge_base', 'issue_refund', 'update_order', 'send_reply', 'escalate_to_human']::text[], 'Harbor & Pine',
+  -0.85, 0.7, array['get_customer', 'get_orders', 'get_ticket_history', 'search_knowledge_base', 'issue_refund', 'update_order', 'send_reply', 'escalate_to_human']::text[], 'Harbor & Pine',
   'Warm, upbeat and practical, like a helpful neighbor. Short paragraphs, plain words, one friendly sign-off. Apologize sincerely when we got something wrong, never over-promise, no emojis.', array['en', 'es', 'fr']::text[], array['harborandpine.example', 'track.example-carrier.com']::text[], null,
   true, 300, 6, 90)
 on conflict (tenant_id) do nothing; -- settings changed in the dashboard are never overwritten by re-seeding
