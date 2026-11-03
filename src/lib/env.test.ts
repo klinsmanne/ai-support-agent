@@ -8,6 +8,12 @@ describe("parseServerEnv", () => {
     expect(env.NODE_ENV).toBe("development");
   });
 
+  it("treats blank values copied from .env.example as unset", () => {
+    const env = parseServerEnv({ GEMINI_API_KEY: "", NEXT_PUBLIC_SUPABASE_URL: "", LLM_MODEL: "" });
+    expect(env.GEMINI_API_KEY).toBeUndefined();
+    expect(env.NEXT_PUBLIC_SUPABASE_URL).toBeUndefined();
+  });
+
   it("rejects an unknown model provider", () => {
     expect(() => parseServerEnv({ LLM_PROVIDER: "made-up" })).toThrow(/LLM_PROVIDER/);
   });
