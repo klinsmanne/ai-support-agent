@@ -13,7 +13,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run lint && npm run typecheck && npm run format:check && npm test",
-    "seed:build": "node scripts/build-seed.ts"
+    "seed:build": "node scripts/build-seed.ts",
+    "secrets": "node scripts/secrets.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

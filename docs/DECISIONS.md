@@ -40,3 +40,15 @@ Architecture decision records (ADRs) — short, with context and trade-offs. New
 
 - **Decision:** Start with the most capable free Gemini model; fall back to Groq on rate limits/outages; keep a Claude adapter inactive.
 - **Why provisional:** final choice is made from eval-suite data (quality, policy compliance, latency, cost/ticket) in milestone I.
+
+## ADR-008: Secrets live in the macOS Keychain locally, Vercel env in the cloud
+
+- **Context:** The user is a beginner; secrets must never be pasted around, printed, or committed — including into the AI assistant's context.
+- **Decision:** `scripts/secrets.mjs` stores values in the Keychain (`ai-support-agent/<NAME>`), generates the git-ignored local env file (mode 600) and pushes values to Vercel via stdin. Values are never printed. Keys are piped directly from provider CLIs where possible.
+- **Trade-off:** macOS-only for local dev; a teammate on Linux/Windows would use `vercel env pull` instead.
+
+## ADR-009: Multi-tenant isolation in three layers
+
+1. **Database:** RLS on every table; composite `(tenant_id, id)` foreign keys make cross-tenant references impossible even for the service role.
+2. **Application:** every repository function takes `tenantId` explicitly; retrieval (`match_kb_chunks`) requires a tenant id and is callable only by the backend.
+3. **Tests:** PGlite runs the real migrations in CI and proves members of one tenant cannot read or modify another's data.
