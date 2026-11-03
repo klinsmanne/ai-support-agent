@@ -8,3 +8,6 @@ next-env.d.ts
 supabase/.temp
 evals/results
 AGENTS.md
+tenants/*/kb
+tenants/tenant.schema.json
+supabase/seed.sql

@@ -1,0 +1,270 @@
+{
+  "$schema": "../tenant.schema.json",
+  "slug": "harbor-pine",
+  "name": "Harbor & Pine Home Goods",
+  "industry": "ecommerce",
+  "settings": {
+    "rollout_mode": "auto_send",
+    "refund_auto_approve_limit_cents": 7500,
+    "max_refunds_per_customer_30d": 2,
+    "escalate_on_negative_sentiment_below": -0.7,
+    "min_confidence_to_act": 0.7,
+    "enabled_tools": [
+      "get_customer",
+      "get_orders",
+      "get_ticket_history",
+      "search_knowledge_base",
+      "issue_refund",
+      "update_order",
+      "send_reply",
+      "escalate_to_human"
+    ],
+    "brand_name": "Harbor & Pine",
+    "brand_voice": "Warm, upbeat and practical, like a helpful neighbor. Short paragraphs, plain words, one friendly sign-off. Apologize sincerely when we got something wrong, never over-promise, no emojis.",
+    "supported_languages": ["en", "es", "fr"],
+    "allowed_link_domains": ["harborandpine.example", "track.example-carrier.com"],
+    "csat_enabled": true,
+    "daily_ticket_cap": 300,
+    "max_ai_replies_per_thread": 6,
+    "retention_days": 90
+  },
+  "customers": [
+    {
+      "key": "olivia",
+      "email": "olivia.bennett@example.com",
+      "name": "Olivia Bennett",
+      "preferred_language": "en"
+    },
+    {
+      "key": "marcus",
+      "email": "marcus.lee@example.com",
+      "name": "Marcus Lee",
+      "preferred_language": "en"
+    },
+    {
+      "key": "maria",
+      "email": "maria.garcia@example.com",
+      "name": "María García",
+      "preferred_language": "es"
+    },
+    {
+      "key": "sophie",
+      "email": "sophie.tremblay@example.com",
+      "name": "Sophie Tremblay",
+      "preferred_language": "fr"
+    },
+    {
+      "key": "james",
+      "email": "james.okafor@example.com",
+      "name": "James Okafor",
+      "preferred_language": "en"
+    },
+    {
+      "key": "priya",
+      "email": "priya.shah@example.com",
+      "name": "Priya Shah",
+      "preferred_language": "en"
+    }
+  ],
+  "orders": [
+    {
+      "order_number": "1042",
+      "customer": "olivia",
+      "status": "delayed",
+      "total_cents": 12900,
+      "items": [
+        {
+          "sku": "LIN-QN-SAGE",
+          "name": "Linen Duvet Set, Queen, Sage",
+          "qty": 1,
+          "price_cents": 12900
+        }
+      ],
+      "carrier": "Example Carrier",
+      "tracking_number": "EC123456789US",
+      "placed_days_ago": 10,
+      "shipped_days_ago": 8,
+      "estimated_delivery_in_days": 3,
+      "shipping_address": {
+        "line1": "12 Willow Lane",
+        "city": "Portland",
+        "region": "OR",
+        "postal_code": "97201",
+        "country": "US"
+      }
+    },
+    {
+      "order_number": "1043",
+      "customer": "olivia",
+      "status": "delivered",
+      "total_cents": 4800,
+      "items": [
+        { "sku": "MUG-STN-4", "name": "Stoneware Mug Set (4)", "qty": 1, "price_cents": 4800 }
+      ],
+      "carrier": "Example Carrier",
+      "tracking_number": "EC223456789US",
+      "placed_days_ago": 30,
+      "shipped_days_ago": 28,
+      "delivered_days_ago": 24,
+      "shipping_address": {
+        "line1": "12 Willow Lane",
+        "city": "Portland",
+        "region": "OR",
+        "postal_code": "97201",
+        "country": "US"
+      }
+    },
+    {
+      "order_number": "1051",
+      "customer": "marcus",
+      "status": "delivered",
+      "total_cents": 6400,
+      "items": [
+        {
+          "sku": "THR-WOOL-CHR",
+          "name": "Wool Throw Blanket, Charcoal",
+          "qty": 1,
+          "price_cents": 6400
+        }
+      ],
+      "carrier": "Example Carrier",
+      "tracking_number": "EC323456789US",
+      "placed_days_ago": 6,
+      "shipped_days_ago": 5,
+      "delivered_days_ago": 2,
+      "duplicate_charge": true,
+      "shipping_address": {
+        "line1": "880 Market St Apt 4",
+        "city": "San Francisco",
+        "region": "CA",
+        "postal_code": "94102",
+        "country": "US"
+      }
+    },
+    {
+      "order_number": "1055",
+      "customer": "marcus",
+      "status": "delivered",
+      "total_cents": 34900,
+      "items": [
+        {
+          "sku": "RUG-JUT-8X10",
+          "name": "Hand-Woven Jute Rug 8x10",
+          "qty": 1,
+          "price_cents": 34900
+        }
+      ],
+      "carrier": "Example Freight",
+      "tracking_number": "EF55500123",
+      "placed_days_ago": 14,
+      "shipped_days_ago": 12,
+      "delivered_days_ago": 7,
+      "duplicate_charge": true,
+      "shipping_address": {
+        "line1": "880 Market St Apt 4",
+        "city": "San Francisco",
+        "region": "CA",
+        "postal_code": "94102",
+        "country": "US"
+      }
+    },
+    {
+      "order_number": "1060",
+      "customer": "james",
+      "status": "processing",
+      "total_cents": 8900,
+      "items": [
+        {
+          "sku": "PIL-DWN-STD-2",
+          "name": "Down Pillows, Standard (2)",
+          "qty": 1,
+          "price_cents": 8900
+        }
+      ],
+      "placed_days_ago": 1,
+      "estimated_delivery_in_days": 6,
+      "shipping_address": {
+        "line1": "45 Elm Street",
+        "city": "Austin",
+        "region": "TX",
+        "postal_code": "78701",
+        "country": "US"
+      }
+    },
+    {
+      "order_number": "1061",
+      "customer": "maria",
+      "status": "shipped",
+      "total_cents": 5600,
+      "items": [
+        { "sku": "TWL-TRK-SET", "name": "Turkish Towel Set", "qty": 1, "price_cents": 5600 }
+      ],
+      "carrier": "Example Carrier",
+      "tracking_number": "EC623456789MX",
+      "placed_days_ago": 4,
+      "shipped_days_ago": 3,
+      "estimated_delivery_in_days": 4,
+      "currency": "USD",
+      "shipping_address": {
+        "line1": "Av. Reforma 222",
+        "city": "Ciudad de México",
+        "region": "CDMX",
+        "postal_code": "06600",
+        "country": "MX"
+      }
+    },
+    {
+      "order_number": "1062",
+      "customer": "sophie",
+      "status": "delivered",
+      "total_cents": 3200,
+      "items": [
+        {
+          "sku": "CND-SOY-FIG",
+          "name": "Fig & Cedar Soy Candle (sale)",
+          "qty": 2,
+          "price_cents": 1600,
+          "final_sale": true
+        }
+      ],
+      "carrier": "Example Carrier",
+      "tracking_number": "EC723456789CA",
+      "placed_days_ago": 20,
+      "shipped_days_ago": 18,
+      "delivered_days_ago": 12,
+      "shipping_address": {
+        "line1": "300 Rue Sherbrooke O",
+        "city": "Montréal",
+        "region": "QC",
+        "postal_code": "H3A 1E3",
+        "country": "CA"
+      }
+    },
+    {
+      "order_number": "1063",
+      "customer": "priya",
+      "status": "delivered",
+      "total_cents": 15900,
+      "items": [
+        {
+          "sku": "LMP-CER-WHT",
+          "name": "Ceramic Table Lamp, White",
+          "qty": 1,
+          "price_cents": 15900
+        }
+      ],
+      "carrier": "Example Carrier",
+      "tracking_number": "EC823456789US",
+      "placed_days_ago": 9,
+      "shipped_days_ago": 8,
+      "delivered_days_ago": 3,
+      "shipping_address": {
+        "line1": "9 Harbor Road",
+        "city": "Boston",
+        "region": "MA",
+        "postal_code": "02110",
+        "country": "US"
+      }
+    }
+  ]
+}

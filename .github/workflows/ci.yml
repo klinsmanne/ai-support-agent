@@ -27,6 +27,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Seed SQL is in sync with tenants/*
+        run: npm run seed:build && git diff --exit-code supabase/seed.sql tenants/tenant.schema.json
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run format:check

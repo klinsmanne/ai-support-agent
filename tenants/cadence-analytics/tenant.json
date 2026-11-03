@@ -1,0 +1,94 @@
+{
+  "$schema": "../tenant.schema.json",
+  "slug": "cadence-analytics",
+  "name": "Cadence Analytics",
+  "industry": "saas",
+  "settings": {
+    "rollout_mode": "draft_only",
+    "refund_auto_approve_limit_cents": 5000,
+    "max_refunds_per_customer_30d": 1,
+    "escalate_on_negative_sentiment_below": -0.5,
+    "min_confidence_to_act": 0.8,
+    "enabled_tools": [
+      "get_customer",
+      "get_orders",
+      "get_ticket_history",
+      "search_knowledge_base",
+      "issue_refund",
+      "send_reply",
+      "escalate_to_human"
+    ],
+    "brand_name": "Cadence Analytics",
+    "brand_voice": "Professional, precise and concise. Lead with the answer, then the steps. Use numbered steps for instructions. No exclamation marks, no emojis.",
+    "supported_languages": ["en", "de"],
+    "allowed_link_domains": ["cadence.example", "status.cadence.example"],
+    "csat_enabled": true,
+    "daily_ticket_cap": 150,
+    "max_ai_replies_per_thread": 4,
+    "retention_days": 60
+  },
+  "customers": [
+    {
+      "key": "nadia",
+      "email": "nadia.petrova@example.org",
+      "name": "Nadia Petrova",
+      "preferred_language": "en",
+      "plan": "Team (annual)"
+    },
+    {
+      "key": "tom",
+      "email": "tom.fischer@example.org",
+      "name": "Tom Fischer",
+      "preferred_language": "de",
+      "plan": "Pro (monthly)"
+    },
+    {
+      "key": "ava",
+      "email": "ava.chen@example.org",
+      "name": "Ava Chen",
+      "preferred_language": "en",
+      "plan": "Starter (monthly)"
+    }
+  ],
+  "orders": [
+    {
+      "order_number": "INV-2041",
+      "customer": "nadia",
+      "status": "delivered",
+      "total_cents": 288000,
+      "items": [
+        {
+          "sku": "TEAM-ANNUAL",
+          "name": "Team plan, annual, 10 seats",
+          "qty": 1,
+          "price_cents": 288000
+        }
+      ],
+      "placed_days_ago": 5,
+      "delivered_days_ago": 5
+    },
+    {
+      "order_number": "INV-2042",
+      "customer": "tom",
+      "status": "delivered",
+      "total_cents": 4900,
+      "items": [
+        { "sku": "PRO-MONTHLY", "name": "Pro plan, monthly", "qty": 1, "price_cents": 4900 }
+      ],
+      "placed_days_ago": 3,
+      "delivered_days_ago": 3,
+      "duplicate_charge": true
+    },
+    {
+      "order_number": "INV-2043",
+      "customer": "ava",
+      "status": "delivered",
+      "total_cents": 1900,
+      "items": [
+        { "sku": "STARTER-MONTHLY", "name": "Starter plan, monthly", "qty": 1, "price_cents": 1900 }
+      ],
+      "placed_days_ago": 12,
+      "delivered_days_ago": 12
+    }
+  ]
+}
