@@ -22,6 +22,10 @@ export const RolloutModeSchema = z.enum(["shadow", "draft_only", "auto_send"]);
 export type RolloutMode = z.infer<typeof RolloutModeSchema>;
 
 const languageCode = z.string().regex(/^[a-z]{2}$/, "ISO 639-1 code, e.g. en");
+const singleLine = z
+  .string()
+  .min(1)
+  .regex(/^[^\r\n]+$/, "must be a single line");
 const domain = z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/, "bare domain, e.g. example.com");
 
 export const TenantSettingsSchema = z
@@ -31,8 +35,11 @@ export const TenantSettingsSchema = z
     max_refunds_per_customer_30d: z.number().int().min(0).max(20),
     escalate_on_negative_sentiment_below: z.number().min(-1).max(0),
     min_confidence_to_act: z.number().min(0).max(1),
-    enabled_tools: z.array(ToolNameSchema).min(1),
-    brand_name: z.string().min(1).max(80),
+    enabled_tools: z
+      .array(ToolNameSchema)
+      .min(1)
+      .refine((tools) => new Set(tools).size === tools.length, "duplicate tool"),
+    brand_name: singleLine.max(80),
     brand_voice: z.string().min(10).max(600),
     supported_languages: z.array(languageCode).min(1),
     allowed_link_domains: z.array(domain),
@@ -53,7 +60,7 @@ const CustomerSchema = z
   .object({
     key: z.string().regex(/^[a-z0-9-]+$/),
     email: z.email().transform((e) => e.toLowerCase()),
-    name: z.string().min(1),
+    name: singleLine,
     preferred_language: languageCode.default("en"),
     plan: z.string().optional(),
   })
@@ -113,7 +120,7 @@ export const TenantConfigSchema = z
   .object({
     $schema: z.string().optional(),
     slug: z.string().regex(/^[a-z0-9-]{2,40}$/),
-    name: z.string().min(1),
+    name: singleLine,
     industry: z.enum(["ecommerce", "saas", "other"]),
     settings: TenantSettingsSchema,
     customers: z.array(CustomerSchema),
@@ -121,14 +128,37 @@ export const TenantConfigSchema = z
   })
   .strict()
   .superRefine((cfg, ctx) => {
+    const issue = (path: (string | number)[], message: string) =>
+      ctx.addIssue({ code: "custom", path, message });
+    const dupes = (values: string[]) => values.filter((v, i) => values.indexOf(v) !== i);
+
+    // Duplicates would map to the same stable UUID and silently overwrite each other.
+    for (const d of dupes(cfg.customers.map((c) => c.key)))
+      issue(["customers"], `duplicate customer key "${d}"`);
+    for (const d of dupes(cfg.customers.map((c) => c.email)))
+      issue(["customers"], `duplicate customer email "${d}"`);
+    for (const d of dupes(cfg.orders.map((o) => o.order_number)))
+      issue(["orders"], `duplicate order number "${d}"`);
+
     const keys = new Set(cfg.customers.map((c) => c.key));
     cfg.orders.forEach((o, i) => {
-      if (!keys.has(o.customer)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["orders", i, "customer"],
-          message: `unknown customer key "${o.customer}"`,
-        });
+      if (!keys.has(o.customer))
+        issue(["orders", i, "customer"], `unknown customer key "${o.customer}"`);
+      const itemsTotal = o.items.reduce((sum, it) => sum + it.qty * it.price_cents, 0);
+      if (itemsTotal !== o.total_cents) {
+        issue(
+          ["orders", i, "total_cents"],
+          `total_cents ${o.total_cents} != sum of items ${itemsTotal}`,
+        );
+      }
+      if (o.shipped_days_ago !== undefined && o.shipped_days_ago > o.placed_days_ago) {
+        issue(["orders", i, "shipped_days_ago"], "an order can't ship before it was placed");
+      }
+      if (
+        o.delivered_days_ago !== undefined &&
+        o.delivered_days_ago > (o.shipped_days_ago ?? o.placed_days_ago)
+      ) {
+        issue(["orders", i, "delivered_days_ago"], "an order can't be delivered before it shipped");
       }
     });
   });

@@ -2,7 +2,7 @@
 
 -- Fictional demo data only. Idempotent: safe to run repeatedly.
 
--- Tenant: Cadence Analytics (cadence-analytics)
+-- Tenant: cadence-analytics
 
 insert into public.tenants (id, slug, name, industry) values ('86a94b96-589e-5a0c-b255-77213b5ec7e8', 'cadence-analytics', 'Cadence Analytics', 'saas')
   on conflict (id) do update set name = excluded.name, industry = excluded.industry;
@@ -30,43 +30,52 @@ insert into public.orders (id, tenant_id, customer_id, order_number, status, cur
 values ('e4a8f59a-66ef-56f7-83b5-b1aa6ac183ea', '86a94b96-589e-5a0c-b255-77213b5ec7e8', '46e87bc4-5dc5-57c9-ae1f-dd21ca282066', 'INV-2041', 'delivered', 'USD', 288000,
   '[{"sku":"TEAM-ANNUAL","name":"Team plan, annual, 10 seats","qty":1,"price_cents":288000}]'::jsonb, '{}'::jsonb, null, null, null,
   now() - interval '5 days', null, now() - interval '5 days')
-on conflict (id) do update set status = excluded.status, items = excluded.items, shipping_address = excluded.shipping_address,
+on conflict (id) do update set customer_id = excluded.customer_id, status = excluded.status, currency = excluded.currency,
+  total_cents = excluded.total_cents, items = excluded.items, shipping_address = excluded.shipping_address,
   carrier = excluded.carrier, tracking_number = excluded.tracking_number, estimated_delivery = excluded.estimated_delivery,
   placed_at = excluded.placed_at, shipped_at = excluded.shipped_at, delivered_at = excluded.delivered_at;
 
 insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values ('739ffbd5-2db7-5163-a00a-11f3315bff04', '86a94b96-589e-5a0c-b255-77213b5ec7e8', 'e4a8f59a-66ef-56f7-83b5-b1aa6ac183ea', '46e87bc4-5dc5-57c9-ae1f-dd21ca282066', 288000, 'captured', now() - interval '5 days')
-on conflict (id) do update set status = 'captured';
+on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;
+
+delete from public.payments where tenant_id = '86a94b96-589e-5a0c-b255-77213b5ec7e8' and order_id = 'e4a8f59a-66ef-56f7-83b5-b1aa6ac183ea' and id <> all(array['739ffbd5-2db7-5163-a00a-11f3315bff04']::uuid[]);
 
 insert into public.orders (id, tenant_id, customer_id, order_number, status, currency, total_cents, items, shipping_address,
   carrier, tracking_number, estimated_delivery, placed_at, shipped_at, delivered_at)
 values ('67fb5cfc-c419-5d2b-a502-bfc8e66aaa27', '86a94b96-589e-5a0c-b255-77213b5ec7e8', 'a9141b91-0f94-539d-9a04-7024b4a8f6cb', 'INV-2042', 'delivered', 'USD', 4900,
   '[{"sku":"PRO-MONTHLY","name":"Pro plan, monthly","qty":1,"price_cents":4900}]'::jsonb, '{}'::jsonb, null, null, null,
   now() - interval '3 days', null, now() - interval '3 days')
-on conflict (id) do update set status = excluded.status, items = excluded.items, shipping_address = excluded.shipping_address,
+on conflict (id) do update set customer_id = excluded.customer_id, status = excluded.status, currency = excluded.currency,
+  total_cents = excluded.total_cents, items = excluded.items, shipping_address = excluded.shipping_address,
   carrier = excluded.carrier, tracking_number = excluded.tracking_number, estimated_delivery = excluded.estimated_delivery,
   placed_at = excluded.placed_at, shipped_at = excluded.shipped_at, delivered_at = excluded.delivered_at;
 
 insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values ('62049446-4263-516d-b41f-d347a4a2f97b', '86a94b96-589e-5a0c-b255-77213b5ec7e8', '67fb5cfc-c419-5d2b-a502-bfc8e66aaa27', 'a9141b91-0f94-539d-9a04-7024b4a8f6cb', 4900, 'captured', now() - interval '3 days')
-on conflict (id) do update set status = 'captured';
+on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;
 
 insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values ('cc5b8c1c-c179-57e2-8860-7eb0466537da', '86a94b96-589e-5a0c-b255-77213b5ec7e8', '67fb5cfc-c419-5d2b-a502-bfc8e66aaa27', 'a9141b91-0f94-539d-9a04-7024b4a8f6cb', 4900, 'captured', now() - interval '3 days')
-on conflict (id) do update set status = 'captured';
+on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;
+
+delete from public.payments where tenant_id = '86a94b96-589e-5a0c-b255-77213b5ec7e8' and order_id = '67fb5cfc-c419-5d2b-a502-bfc8e66aaa27' and id <> all(array['62049446-4263-516d-b41f-d347a4a2f97b', 'cc5b8c1c-c179-57e2-8860-7eb0466537da']::uuid[]);
 
 insert into public.orders (id, tenant_id, customer_id, order_number, status, currency, total_cents, items, shipping_address,
   carrier, tracking_number, estimated_delivery, placed_at, shipped_at, delivered_at)
 values ('d14a77d2-7c36-5123-a205-100fd1286d03', '86a94b96-589e-5a0c-b255-77213b5ec7e8', 'da642a3f-472f-5088-bb92-f0d0cba7b53e', 'INV-2043', 'delivered', 'USD', 1900,
   '[{"sku":"STARTER-MONTHLY","name":"Starter plan, monthly","qty":1,"price_cents":1900}]'::jsonb, '{}'::jsonb, null, null, null,
   now() - interval '12 days', null, now() - interval '12 days')
-on conflict (id) do update set status = excluded.status, items = excluded.items, shipping_address = excluded.shipping_address,
+on conflict (id) do update set customer_id = excluded.customer_id, status = excluded.status, currency = excluded.currency,
+  total_cents = excluded.total_cents, items = excluded.items, shipping_address = excluded.shipping_address,
   carrier = excluded.carrier, tracking_number = excluded.tracking_number, estimated_delivery = excluded.estimated_delivery,
   placed_at = excluded.placed_at, shipped_at = excluded.shipped_at, delivered_at = excluded.delivered_at;
 
 insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values ('6ac24106-b8b0-5b2d-aeb7-374d20f0a58e', '86a94b96-589e-5a0c-b255-77213b5ec7e8', 'd14a77d2-7c36-5123-a205-100fd1286d03', 'da642a3f-472f-5088-bb92-f0d0cba7b53e', 1900, 'captured', now() - interval '12 days')
-on conflict (id) do update set status = 'captured';
+on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;
+
+delete from public.payments where tenant_id = '86a94b96-589e-5a0c-b255-77213b5ec7e8' and order_id = 'd14a77d2-7c36-5123-a205-100fd1286d03' and id <> all(array['6ac24106-b8b0-5b2d-aeb7-374d20f0a58e']::uuid[]);
 
 insert into public.kb_documents (id, tenant_id, slug, title, content) values ('92f30922-569b-5245-9a79-7dafaa31912c', '86a94b96-589e-5a0c-b255-77213b5ec7e8', 'account-security', 'Account Access and Security', '# Account Access and Security
 
@@ -191,7 +200,13 @@ Upgrades take effect immediately and are prorated. Downgrades take effect at the
 
 delete from public.kb_chunks where document_id = '620c13ef-5eda-5c63-8efa-629073b2312a' and chunk_index >= 1;
 
--- Tenant: Harbor & Pine Home Goods (harbor-pine)
+delete from public.orders where tenant_id = '86a94b96-589e-5a0c-b255-77213b5ec7e8' and id <> all(array['e4a8f59a-66ef-56f7-83b5-b1aa6ac183ea', '67fb5cfc-c419-5d2b-a502-bfc8e66aaa27', 'd14a77d2-7c36-5123-a205-100fd1286d03']::uuid[]);
+
+delete from public.customers where tenant_id = '86a94b96-589e-5a0c-b255-77213b5ec7e8' and id <> all(array['46e87bc4-5dc5-57c9-ae1f-dd21ca282066', 'a9141b91-0f94-539d-9a04-7024b4a8f6cb', 'da642a3f-472f-5088-bb92-f0d0cba7b53e']::uuid[]);
+
+delete from public.kb_documents where tenant_id = '86a94b96-589e-5a0c-b255-77213b5ec7e8' and id <> all(array['92f30922-569b-5245-9a79-7dafaa31912c', 'c396633a-4534-577b-9d05-ac08c4da26d2', '80693878-92ce-554e-811b-a321d7de2abe', '5e8aee45-4454-55e3-896e-f0cec277dc6a', '620c13ef-5eda-5c63-8efa-629073b2312a']::uuid[]);
+
+-- Tenant: harbor-pine
 
 insert into public.tenants (id, slug, name, industry) values ('11fc6851-09e5-5cff-91e4-5a5f38a515c8', 'harbor-pine', 'Harbor & Pine Home Goods', 'ecommerce')
   on conflict (id) do update set name = excluded.name, industry = excluded.industry;
@@ -228,112 +243,136 @@ insert into public.orders (id, tenant_id, customer_id, order_number, status, cur
 values ('b0c37f86-4fa3-5941-8d8c-97b60c99e9dc', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', '430cd428-87af-509e-841e-f2fc08f29887', '1042', 'delayed', 'USD', 12900,
   '[{"sku":"LIN-QN-SAGE","name":"Linen Duvet Set, Queen, Sage","qty":1,"price_cents":12900}]'::jsonb, '{"line1":"12 Willow Lane","city":"Portland","region":"OR","postal_code":"97201","country":"US"}'::jsonb, 'Example Carrier', 'EC123456789US', current_date + 3,
   now() - interval '10 days', now() - interval '8 days', null)
-on conflict (id) do update set status = excluded.status, items = excluded.items, shipping_address = excluded.shipping_address,
+on conflict (id) do update set customer_id = excluded.customer_id, status = excluded.status, currency = excluded.currency,
+  total_cents = excluded.total_cents, items = excluded.items, shipping_address = excluded.shipping_address,
   carrier = excluded.carrier, tracking_number = excluded.tracking_number, estimated_delivery = excluded.estimated_delivery,
   placed_at = excluded.placed_at, shipped_at = excluded.shipped_at, delivered_at = excluded.delivered_at;
 
 insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values ('96b62a51-a9d7-552c-8669-c957295e4753', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', 'b0c37f86-4fa3-5941-8d8c-97b60c99e9dc', '430cd428-87af-509e-841e-f2fc08f29887', 12900, 'captured', now() - interval '10 days')
-on conflict (id) do update set status = 'captured';
+on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;
+
+delete from public.payments where tenant_id = '11fc6851-09e5-5cff-91e4-5a5f38a515c8' and order_id = 'b0c37f86-4fa3-5941-8d8c-97b60c99e9dc' and id <> all(array['96b62a51-a9d7-552c-8669-c957295e4753']::uuid[]);
 
 insert into public.orders (id, tenant_id, customer_id, order_number, status, currency, total_cents, items, shipping_address,
   carrier, tracking_number, estimated_delivery, placed_at, shipped_at, delivered_at)
 values ('603a25c6-435d-577e-9f27-d95a81d2cbe9', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', '430cd428-87af-509e-841e-f2fc08f29887', '1043', 'delivered', 'USD', 4800,
   '[{"sku":"MUG-STN-4","name":"Stoneware Mug Set (4)","qty":1,"price_cents":4800}]'::jsonb, '{"line1":"12 Willow Lane","city":"Portland","region":"OR","postal_code":"97201","country":"US"}'::jsonb, 'Example Carrier', 'EC223456789US', null,
   now() - interval '30 days', now() - interval '28 days', now() - interval '24 days')
-on conflict (id) do update set status = excluded.status, items = excluded.items, shipping_address = excluded.shipping_address,
+on conflict (id) do update set customer_id = excluded.customer_id, status = excluded.status, currency = excluded.currency,
+  total_cents = excluded.total_cents, items = excluded.items, shipping_address = excluded.shipping_address,
   carrier = excluded.carrier, tracking_number = excluded.tracking_number, estimated_delivery = excluded.estimated_delivery,
   placed_at = excluded.placed_at, shipped_at = excluded.shipped_at, delivered_at = excluded.delivered_at;
 
 insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values ('01270937-809e-5562-b671-edfacd04c54f', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', '603a25c6-435d-577e-9f27-d95a81d2cbe9', '430cd428-87af-509e-841e-f2fc08f29887', 4800, 'captured', now() - interval '30 days')
-on conflict (id) do update set status = 'captured';
+on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;
+
+delete from public.payments where tenant_id = '11fc6851-09e5-5cff-91e4-5a5f38a515c8' and order_id = '603a25c6-435d-577e-9f27-d95a81d2cbe9' and id <> all(array['01270937-809e-5562-b671-edfacd04c54f']::uuid[]);
 
 insert into public.orders (id, tenant_id, customer_id, order_number, status, currency, total_cents, items, shipping_address,
   carrier, tracking_number, estimated_delivery, placed_at, shipped_at, delivered_at)
 values ('880333ee-e94e-58b5-9ad7-16bd332754dd', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', '3e3f0062-5f29-52d8-908a-facd882ad464', '1051', 'delivered', 'USD', 6400,
   '[{"sku":"THR-WOOL-CHR","name":"Wool Throw Blanket, Charcoal","qty":1,"price_cents":6400}]'::jsonb, '{"line1":"880 Market St Apt 4","city":"San Francisco","region":"CA","postal_code":"94102","country":"US"}'::jsonb, 'Example Carrier', 'EC323456789US', null,
   now() - interval '6 days', now() - interval '5 days', now() - interval '2 days')
-on conflict (id) do update set status = excluded.status, items = excluded.items, shipping_address = excluded.shipping_address,
+on conflict (id) do update set customer_id = excluded.customer_id, status = excluded.status, currency = excluded.currency,
+  total_cents = excluded.total_cents, items = excluded.items, shipping_address = excluded.shipping_address,
   carrier = excluded.carrier, tracking_number = excluded.tracking_number, estimated_delivery = excluded.estimated_delivery,
   placed_at = excluded.placed_at, shipped_at = excluded.shipped_at, delivered_at = excluded.delivered_at;
 
 insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values ('bd90df42-c27b-5de5-b483-35f9226de28e', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', '880333ee-e94e-58b5-9ad7-16bd332754dd', '3e3f0062-5f29-52d8-908a-facd882ad464', 6400, 'captured', now() - interval '6 days')
-on conflict (id) do update set status = 'captured';
+on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;
 
 insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values ('cbc335a9-7cab-5972-b2cd-38e55619972f', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', '880333ee-e94e-58b5-9ad7-16bd332754dd', '3e3f0062-5f29-52d8-908a-facd882ad464', 6400, 'captured', now() - interval '6 days')
-on conflict (id) do update set status = 'captured';
+on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;
+
+delete from public.payments where tenant_id = '11fc6851-09e5-5cff-91e4-5a5f38a515c8' and order_id = '880333ee-e94e-58b5-9ad7-16bd332754dd' and id <> all(array['bd90df42-c27b-5de5-b483-35f9226de28e', 'cbc335a9-7cab-5972-b2cd-38e55619972f']::uuid[]);
 
 insert into public.orders (id, tenant_id, customer_id, order_number, status, currency, total_cents, items, shipping_address,
   carrier, tracking_number, estimated_delivery, placed_at, shipped_at, delivered_at)
 values ('1b07e326-73f2-5c0f-8c44-7807ebfed3fb', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', '3e3f0062-5f29-52d8-908a-facd882ad464', '1055', 'delivered', 'USD', 34900,
   '[{"sku":"RUG-JUT-8X10","name":"Hand-Woven Jute Rug 8x10","qty":1,"price_cents":34900}]'::jsonb, '{"line1":"880 Market St Apt 4","city":"San Francisco","region":"CA","postal_code":"94102","country":"US"}'::jsonb, 'Example Freight', 'EF55500123', null,
   now() - interval '14 days', now() - interval '12 days', now() - interval '7 days')
-on conflict (id) do update set status = excluded.status, items = excluded.items, shipping_address = excluded.shipping_address,
+on conflict (id) do update set customer_id = excluded.customer_id, status = excluded.status, currency = excluded.currency,
+  total_cents = excluded.total_cents, items = excluded.items, shipping_address = excluded.shipping_address,
   carrier = excluded.carrier, tracking_number = excluded.tracking_number, estimated_delivery = excluded.estimated_delivery,
   placed_at = excluded.placed_at, shipped_at = excluded.shipped_at, delivered_at = excluded.delivered_at;
 
 insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values ('a63b0e79-7e2f-5d3e-a328-8de822d7099e', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', '1b07e326-73f2-5c0f-8c44-7807ebfed3fb', '3e3f0062-5f29-52d8-908a-facd882ad464', 34900, 'captured', now() - interval '14 days')
-on conflict (id) do update set status = 'captured';
+on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;
 
 insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values ('43f0e47f-49d2-5a08-9bed-c786a46084fc', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', '1b07e326-73f2-5c0f-8c44-7807ebfed3fb', '3e3f0062-5f29-52d8-908a-facd882ad464', 34900, 'captured', now() - interval '14 days')
-on conflict (id) do update set status = 'captured';
+on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;
+
+delete from public.payments where tenant_id = '11fc6851-09e5-5cff-91e4-5a5f38a515c8' and order_id = '1b07e326-73f2-5c0f-8c44-7807ebfed3fb' and id <> all(array['a63b0e79-7e2f-5d3e-a328-8de822d7099e', '43f0e47f-49d2-5a08-9bed-c786a46084fc']::uuid[]);
 
 insert into public.orders (id, tenant_id, customer_id, order_number, status, currency, total_cents, items, shipping_address,
   carrier, tracking_number, estimated_delivery, placed_at, shipped_at, delivered_at)
 values ('b06fc5c9-e729-5d77-aa45-dbbd77e63aa1', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', '26f9e8d0-ccd6-5e4a-8cd1-3d8cf7146371', '1060', 'processing', 'USD', 8900,
   '[{"sku":"PIL-DWN-STD-2","name":"Down Pillows, Standard (2)","qty":1,"price_cents":8900}]'::jsonb, '{"line1":"45 Elm Street","city":"Austin","region":"TX","postal_code":"78701","country":"US"}'::jsonb, null, null, current_date + 6,
   now() - interval '1 days', null, null)
-on conflict (id) do update set status = excluded.status, items = excluded.items, shipping_address = excluded.shipping_address,
+on conflict (id) do update set customer_id = excluded.customer_id, status = excluded.status, currency = excluded.currency,
+  total_cents = excluded.total_cents, items = excluded.items, shipping_address = excluded.shipping_address,
   carrier = excluded.carrier, tracking_number = excluded.tracking_number, estimated_delivery = excluded.estimated_delivery,
   placed_at = excluded.placed_at, shipped_at = excluded.shipped_at, delivered_at = excluded.delivered_at;
 
 insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values ('f5d45d40-e408-586d-ad1b-078487ff316e', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', 'b06fc5c9-e729-5d77-aa45-dbbd77e63aa1', '26f9e8d0-ccd6-5e4a-8cd1-3d8cf7146371', 8900, 'captured', now() - interval '1 days')
-on conflict (id) do update set status = 'captured';
+on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;
+
+delete from public.payments where tenant_id = '11fc6851-09e5-5cff-91e4-5a5f38a515c8' and order_id = 'b06fc5c9-e729-5d77-aa45-dbbd77e63aa1' and id <> all(array['f5d45d40-e408-586d-ad1b-078487ff316e']::uuid[]);
 
 insert into public.orders (id, tenant_id, customer_id, order_number, status, currency, total_cents, items, shipping_address,
   carrier, tracking_number, estimated_delivery, placed_at, shipped_at, delivered_at)
 values ('e404c346-49c6-5635-b1ec-ee15eb834019', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', 'f2fee82a-d948-5983-a1c1-9d188729b621', '1061', 'shipped', 'USD', 5600,
   '[{"sku":"TWL-TRK-SET","name":"Turkish Towel Set","qty":1,"price_cents":5600}]'::jsonb, '{"line1":"Av. Reforma 222","city":"Ciudad de México","region":"CDMX","postal_code":"06600","country":"MX"}'::jsonb, 'Example Carrier', 'EC623456789MX', current_date + 4,
   now() - interval '4 days', now() - interval '3 days', null)
-on conflict (id) do update set status = excluded.status, items = excluded.items, shipping_address = excluded.shipping_address,
+on conflict (id) do update set customer_id = excluded.customer_id, status = excluded.status, currency = excluded.currency,
+  total_cents = excluded.total_cents, items = excluded.items, shipping_address = excluded.shipping_address,
   carrier = excluded.carrier, tracking_number = excluded.tracking_number, estimated_delivery = excluded.estimated_delivery,
   placed_at = excluded.placed_at, shipped_at = excluded.shipped_at, delivered_at = excluded.delivered_at;
 
 insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values ('6c24e047-e645-5a1e-bf8e-a5511a096c36', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', 'e404c346-49c6-5635-b1ec-ee15eb834019', 'f2fee82a-d948-5983-a1c1-9d188729b621', 5600, 'captured', now() - interval '4 days')
-on conflict (id) do update set status = 'captured';
+on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;
+
+delete from public.payments where tenant_id = '11fc6851-09e5-5cff-91e4-5a5f38a515c8' and order_id = 'e404c346-49c6-5635-b1ec-ee15eb834019' and id <> all(array['6c24e047-e645-5a1e-bf8e-a5511a096c36']::uuid[]);
 
 insert into public.orders (id, tenant_id, customer_id, order_number, status, currency, total_cents, items, shipping_address,
   carrier, tracking_number, estimated_delivery, placed_at, shipped_at, delivered_at)
 values ('cf7ab3d3-3ccd-5ceb-9618-0d84f97d03ab', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', '8896de91-dfef-541b-bec1-8c22ef7fe51b', '1062', 'delivered', 'USD', 3200,
   '[{"sku":"CND-SOY-FIG","name":"Fig & Cedar Soy Candle (sale)","qty":2,"price_cents":1600,"final_sale":true}]'::jsonb, '{"line1":"300 Rue Sherbrooke O","city":"Montréal","region":"QC","postal_code":"H3A 1E3","country":"CA"}'::jsonb, 'Example Carrier', 'EC723456789CA', null,
   now() - interval '20 days', now() - interval '18 days', now() - interval '12 days')
-on conflict (id) do update set status = excluded.status, items = excluded.items, shipping_address = excluded.shipping_address,
+on conflict (id) do update set customer_id = excluded.customer_id, status = excluded.status, currency = excluded.currency,
+  total_cents = excluded.total_cents, items = excluded.items, shipping_address = excluded.shipping_address,
   carrier = excluded.carrier, tracking_number = excluded.tracking_number, estimated_delivery = excluded.estimated_delivery,
   placed_at = excluded.placed_at, shipped_at = excluded.shipped_at, delivered_at = excluded.delivered_at;
 
 insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values ('5df25735-912e-5cbc-bec5-ad24267e2f03', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', 'cf7ab3d3-3ccd-5ceb-9618-0d84f97d03ab', '8896de91-dfef-541b-bec1-8c22ef7fe51b', 3200, 'captured', now() - interval '20 days')
-on conflict (id) do update set status = 'captured';
+on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;
+
+delete from public.payments where tenant_id = '11fc6851-09e5-5cff-91e4-5a5f38a515c8' and order_id = 'cf7ab3d3-3ccd-5ceb-9618-0d84f97d03ab' and id <> all(array['5df25735-912e-5cbc-bec5-ad24267e2f03']::uuid[]);
 
 insert into public.orders (id, tenant_id, customer_id, order_number, status, currency, total_cents, items, shipping_address,
   carrier, tracking_number, estimated_delivery, placed_at, shipped_at, delivered_at)
 values ('92b8e9dd-b8d5-5be9-b01d-c518fe2afee8', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', 'd9ee5f1d-48fd-5d08-8906-951ca6f30d50', '1063', 'delivered', 'USD', 15900,
   '[{"sku":"LMP-CER-WHT","name":"Ceramic Table Lamp, White","qty":1,"price_cents":15900}]'::jsonb, '{"line1":"9 Harbor Road","city":"Boston","region":"MA","postal_code":"02110","country":"US"}'::jsonb, 'Example Carrier', 'EC823456789US', null,
   now() - interval '9 days', now() - interval '8 days', now() - interval '3 days')
-on conflict (id) do update set status = excluded.status, items = excluded.items, shipping_address = excluded.shipping_address,
+on conflict (id) do update set customer_id = excluded.customer_id, status = excluded.status, currency = excluded.currency,
+  total_cents = excluded.total_cents, items = excluded.items, shipping_address = excluded.shipping_address,
   carrier = excluded.carrier, tracking_number = excluded.tracking_number, estimated_delivery = excluded.estimated_delivery,
   placed_at = excluded.placed_at, shipped_at = excluded.shipped_at, delivered_at = excluded.delivered_at;
 
 insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values ('5d9aea86-1dab-5b3a-b5f5-e9d0b8560fa4', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', '92b8e9dd-b8d5-5be9-b01d-c518fe2afee8', 'd9ee5f1d-48fd-5d08-8906-951ca6f30d50', 15900, 'captured', now() - interval '9 days')
-on conflict (id) do update set status = 'captured';
+on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;
+
+delete from public.payments where tenant_id = '11fc6851-09e5-5cff-91e4-5a5f38a515c8' and order_id = '92b8e9dd-b8d5-5be9-b01d-c518fe2afee8' and id <> all(array['5d9aea86-1dab-5b3a-b5f5-e9d0b8560fa4']::uuid[]);
 
 insert into public.kb_documents (id, tenant_id, slug, title, content) values ('0733cfce-989c-5500-9852-cf40b21b2816', '11fc6851-09e5-5cff-91e4-5a5f38a515c8', 'contact-and-hours', 'Contact and Support Hours', '# Contact and Support Hours
 
@@ -543,3 +582,9 @@ If tracking has not updated for 5 business days, or your order is more than 5 bu
     embedding = case when public.kb_chunks.content = excluded.content then public.kb_chunks.embedding else null end;
 
 delete from public.kb_chunks where document_id = '03e42955-c4fe-5c64-9291-118ba6214cb7' and chunk_index >= 5;
+
+delete from public.orders where tenant_id = '11fc6851-09e5-5cff-91e4-5a5f38a515c8' and id <> all(array['b0c37f86-4fa3-5941-8d8c-97b60c99e9dc', '603a25c6-435d-577e-9f27-d95a81d2cbe9', '880333ee-e94e-58b5-9ad7-16bd332754dd', '1b07e326-73f2-5c0f-8c44-7807ebfed3fb', 'b06fc5c9-e729-5d77-aa45-dbbd77e63aa1', 'e404c346-49c6-5635-b1ec-ee15eb834019', 'cf7ab3d3-3ccd-5ceb-9618-0d84f97d03ab', '92b8e9dd-b8d5-5be9-b01d-c518fe2afee8']::uuid[]);
+
+delete from public.customers where tenant_id = '11fc6851-09e5-5cff-91e4-5a5f38a515c8' and id <> all(array['430cd428-87af-509e-841e-f2fc08f29887', '3e3f0062-5f29-52d8-908a-facd882ad464', 'f2fee82a-d948-5983-a1c1-9d188729b621', '8896de91-dfef-541b-bec1-8c22ef7fe51b', '26f9e8d0-ccd6-5e4a-8cd1-3d8cf7146371', 'd9ee5f1d-48fd-5d08-8906-951ca6f30d50']::uuid[]);
+
+delete from public.kb_documents where tenant_id = '11fc6851-09e5-5cff-91e4-5a5f38a515c8' and id <> all(array['0733cfce-989c-5500-9852-cf40b21b2816', '4d708ccb-b358-5729-8c0a-fef89e97064d', '6b313722-9fc1-5e8a-a572-e048ce12cc90', 'e4df4ee9-d5b3-5719-8c9a-727057259c06', '24eafca7-5c20-58f4-94cb-27483f287036', '03e42955-c4fe-5c64-9291-118ba6214cb7']::uuid[]);

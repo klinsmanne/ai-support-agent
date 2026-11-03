@@ -25,6 +25,7 @@ export function lit(value: SqlValue): string {
 
 const textArray = (values: string[]) =>
   values.length ? `array[${values.map(lit).join(", ")}]::text[]` : "array[]::text[]";
+const uuidArray = (ids: string[]) => `array[${ids.map(lit).join(", ")}]::uuid[]`;
 const daysAgo = (n: number | undefined) =>
   n === undefined ? "null" : `now() - interval '${n} days'`;
 const dateIn = (n: number | undefined) => (n === undefined ? "null" : `current_date + ${n}`);
@@ -38,7 +39,8 @@ export interface KbDoc {
 export function buildTenantSeedSql(cfg: TenantConfig, kbDocs: KbDoc[]): string {
   const tenantId = stableUuid("tenant", cfg.slug);
   const s = cfg.settings;
-  const out: string[] = [`-- Tenant: ${cfg.name} (${cfg.slug})`];
+  // Only the regex-validated slug goes into the SQL comment; free text could contain a newline.
+  const out: string[] = [`-- Tenant: ${cfg.slug}`];
 
   out.push(
     `insert into public.tenants (id, slug, name, industry) values (${lit(tenantId)}, ${lit(cfg.slug)}, ${lit(cfg.name)}, ${lit(cfg.industry)})
@@ -76,19 +78,25 @@ on conflict (tenant_id) do nothing; -- settings changed in the dashboard are nev
 values (${lit(orderId)}, ${lit(tenantId)}, ${lit(customerId)}, ${lit(o.order_number)}, ${lit(o.status)}, ${lit(o.currency)}, ${lit(o.total_cents)},
   ${lit(o.items)}, ${lit(o.shipping_address ?? {})}, ${lit(o.carrier)}, ${lit(o.tracking_number)}, ${dateIn(o.estimated_delivery_in_days)},
   ${daysAgo(o.placed_days_ago)}, ${daysAgo(o.shipped_days_ago)}, ${daysAgo(o.delivered_days_ago)})
-on conflict (id) do update set status = excluded.status, items = excluded.items, shipping_address = excluded.shipping_address,
+on conflict (id) do update set customer_id = excluded.customer_id, status = excluded.status, currency = excluded.currency,
+  total_cents = excluded.total_cents, items = excluded.items, shipping_address = excluded.shipping_address,
   carrier = excluded.carrier, tracking_number = excluded.tracking_number, estimated_delivery = excluded.estimated_delivery,
   placed_at = excluded.placed_at, shipped_at = excluded.shipped_at, delivered_at = excluded.delivered_at;`,
     );
     const charges = o.duplicate_charge ? 2 : 1;
+    const paymentIds: string[] = [];
     for (let i = 0; i < charges; i++) {
       const paymentId = stableUuid("payment", cfg.slug, o.order_number, String(i));
+      paymentIds.push(paymentId);
       out.push(
         `insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values (${lit(paymentId)}, ${lit(tenantId)}, ${lit(orderId)}, ${lit(customerId)}, ${lit(o.total_cents)}, 'captured', ${daysAgo(o.placed_days_ago)})
-on conflict (id) do update set status = 'captured';`,
+on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;`,
       );
     }
+    out.push(
+      `delete from public.payments where tenant_id = ${lit(tenantId)} and order_id = ${lit(orderId)} and id <> all(${uuidArray(paymentIds)});`,
+    );
   }
 
   for (const doc of kbDocs) {
@@ -110,6 +118,20 @@ on conflict (id) do update set status = 'captured';`,
       `delete from public.kb_chunks where document_id = ${lit(docId)} and chunk_index >= ${chunks.length};`,
     );
   }
+
+  // The config is the source of truth: rows removed from it are removed from the database
+  // (orders cascade to payments; KB documents cascade to chunks).
+  const orderIds = cfg.orders.map((o) => stableUuid("order", cfg.slug, o.order_number));
+  const docIds = kbDocs.map((d) => stableUuid("kb", cfg.slug, d.slug));
+  out.push(
+    `delete from public.orders where tenant_id = ${lit(tenantId)} and id <> all(${uuidArray(orderIds)});`,
+  );
+  out.push(
+    `delete from public.customers where tenant_id = ${lit(tenantId)} and id <> all(${uuidArray([...customerIds.values()])});`,
+  );
+  out.push(
+    `delete from public.kb_documents where tenant_id = ${lit(tenantId)} and id <> all(${uuidArray(docIds)});`,
+  );
 
   return out.join("\n\n");
 }

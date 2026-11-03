@@ -39,6 +39,24 @@ describe("chunkMarkdown", () => {
       "Returns — Exchanges\nNo.",
     ]);
   });
+  it("handles a BOM, '#Title' without a space, and '##' inside code fences", () => {
+    const { title, chunks } = chunkMarkdown(
+      "﻿#Guide\n## A\n```\n## not a heading\n```\n## B\nText.",
+    );
+    expect(title).toBe("Guide");
+    expect(chunks).toHaveLength(2);
+    expect(chunks[0]).toContain("## not a heading");
+  });
+
+  it("splits a single oversized paragraph and keeps every chunk within the limit", () => {
+    const sentence = "This sentence is about forty characters. ";
+    const { chunks } = chunkMarkdown(`# T\n## S\n${sentence.repeat(60)}`, 300);
+    expect(chunks.length).toBeGreaterThan(1);
+    expect(chunks.every((c) => c.length <= 300)).toBe(true);
+    const unbroken = chunkMarkdown(`# T\n${"x".repeat(1000)}`, 300).chunks;
+    expect(unbroken.every((c) => c.length <= 300)).toBe(true);
+  });
+
   it("splits long sections on paragraph boundaries", () => {
     const para = "x".repeat(700);
     const { chunks } = chunkMarkdown(`# T\n## S\n${para}\n\n${para}`, 1000);

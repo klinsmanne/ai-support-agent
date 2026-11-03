@@ -11,7 +11,8 @@
     },
     "name": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "pattern": "^[^\\r\\n]+$"
     },
     "industry": {
       "type": "string",
@@ -73,7 +74,8 @@
         "brand_name": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 80
+          "maxLength": 80,
+          "pattern": "^[^\\r\\n]+$"
         },
         "brand_voice": {
           "type": "string",
@@ -152,7 +154,8 @@
           },
           "name": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "^[^\\r\\n]+$"
           },
           "preferred_language": {
             "default": "en",

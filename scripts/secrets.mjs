@@ -52,16 +52,14 @@ function get(name) {
 }
 
 function set(name, value) {
-  execFileSync("security", [
-    "add-generic-password",
-    "-U",
-    "-a",
-    ACCOUNT,
-    "-s",
-    service(name),
-    "-w",
-    value,
-  ]);
+  // `security -i` reads the command from stdin, so the value never appears in argv / `ps` output.
+  if (/["\\\r\n]/.test(value))
+    throw new Error("Value contains unsupported characters (quote, backslash, newline)");
+  execFileSync("security", ["-i"], {
+    input: `add-generic-password -U -a ${ACCOUNT} -s ${service(name)} -w "${value}"\n`,
+    stdio: ["pipe", "ignore", "inherit"],
+  });
+  if (get(name) !== value) throw new Error(`Failed to store ${name} in Keychain`);
 }
 
 const [cmd, arg] = process.argv.slice(2);
@@ -80,7 +78,8 @@ if (cmd === "set") {
     const v = get(name);
     if (v !== undefined) lines.push(`${name}=${v}`);
   }
-  writeFileSync(LOCAL_ENV_FILE, lines.join("\n") + "\n");
+  // Create with 0600 from the start; chmod also tightens a pre-existing file.
+  writeFileSync(LOCAL_ENV_FILE, lines.join("\n") + "\n", { mode: 0o600 });
   chmodSync(LOCAL_ENV_FILE, 0o600);
   console.log(`✓ wrote ${lines.length - 1} variables to the local env file (values not shown)`);
 } else if (cmd === "push-vercel") {
