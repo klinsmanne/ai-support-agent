@@ -29,3 +29,14 @@ Architecture decision records (ADRs) — short, with context and trade-offs. New
 
 - **Decision:** Commits use the GitHub no-reply address for `klinsmanne`.
 - **Why:** Credits work to the right profile while keeping personal email out of public history.
+
+## ADR-006: Poll Gmail from Supabase pg_cron (not Gmail push, not Vercel cron)
+
+- **Context:** $0, no credit card. Gmail push needs Cloud Pub/Sub, which needs a GCP billing account. Vercel Hobby cron runs at most once a day.
+- **Decision:** Supabase `pg_cron` + `pg_net` calls a signed poll endpoint every 2 minutes; the endpoint uses `history.list` (2 quota units/call).
+- **Trade-off:** up to ~2 min latency vs instant push — negligible against a 9.5 h baseline. Bonus: constant DB activity prevents the free project from pausing.
+
+## ADR-007: Gemini 3.8 Flash primary, Groq gpt-oss-120b fallback — provisional
+
+- **Decision:** Start with the most capable free Gemini model; fall back to Groq on rate limits/outages; keep a Claude adapter inactive.
+- **Why provisional:** final choice is made from eval-suite data (quality, policy compliance, latency, cost/ticket) in milestone I.
