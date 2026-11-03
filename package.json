@@ -13,10 +13,13 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run lint && npm run typecheck && npm run format:check && npm test",
-    "seed:build": "node scripts/build-seed.ts",
-    "secrets": "node scripts/secrets.mjs"
+    "seed:build": "tsx scripts/build-seed.ts",
+    "secrets": "node scripts/secrets.mjs",
+    "llm:smoke": "tsx scripts/llm-smoke.ts",
+    "kb:embed": "tsx scripts/kb-embed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
     "next": "16.4.4",
@@ -37,6 +40,7 @@
     "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.1.0"
   },
