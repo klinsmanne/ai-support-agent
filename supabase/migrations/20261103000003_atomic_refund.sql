@@ -12,7 +12,7 @@ create or replace function public.create_refund_checked(
   p_amount_cents integer,
   p_reason text,
   p_status public.refund_status,
-  p_idempotency_key text,
+  p_idempotency_key text, -- gitleaks:allow (parameter name, not a secret)
   p_max_refunds_30d integer
 )
 returns table (refund_id uuid, outcome text)
