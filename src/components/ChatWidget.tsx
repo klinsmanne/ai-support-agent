@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { z } from "zod";
 
 type Msg = { from: "you" | "agent" | "system"; text: string };
 
 /** Fired by the landing page's "Try it" buttons: fills the chat in, never sends on its own. */
 export const PREFILL_EVENT = "support-chat:prefill";
-export interface PrefillDetail {
-  tenant: "harbor-pine" | "cadence-analytics";
-  text: string;
-  verify: { order: string; email: string } | null;
-}
+const PrefillSchema = z.object({
+  tenant: z.enum(["harbor-pine", "cadence-analytics"]),
+  text: z.string().max(2000),
+  verify: z.object({ order: z.string().max(40), email: z.email().max(254) }).nullable(),
+});
+export type PrefillDetail = z.infer<typeof PrefillSchema>;
 
 const TENANTS = [
   {
@@ -41,15 +43,23 @@ export function ChatWidget() {
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const tenantRef = useRef(tenant);
+  // Email of the customer this conversation is verified as (null until verified).
+  const verifiedAs = useRef<string | null>(null);
   useEffect(() => {
     tenantRef.current = tenant;
   }, [tenant]);
 
   useEffect(() => {
     function onPrefill(e: Event) {
-      const d = (e as CustomEvent<PrefillDetail>).detail;
-      if (!TENANTS.some((t) => t.slug === d.tenant)) return;
-      if (d.tenant !== tenantRef.current) switchTenant(d.tenant);
+      // Any script on the page can fire this event: validate it like any other input.
+      const parsed = PrefillSchema.safeParse((e as CustomEvent<unknown>).detail);
+      if (!parsed.success) return;
+      const d = parsed.data;
+      // A different company, or a different customer than the one verified, gets a fresh
+      // conversation, so one customer's verified session is never reused for another.
+      const otherCustomer =
+        d.verify && verifiedAs.current && verifiedAs.current !== d.verify.email.toLowerCase();
+      if (d.tenant !== tenantRef.current || otherCustomer) switchTenant(d.tenant);
       setInput(d.text.slice(0, 2000));
       if (d.verify) {
         setOrder(d.verify.order);
@@ -60,6 +70,7 @@ export function ChatWidget() {
     }
     window.addEventListener(PREFILL_EVENT, onPrefill);
     return () => window.removeEventListener(PREFILL_EVENT, onPrefill);
+    // switchTenant only touches state setters and refs, so registering once is safe.
   }, []);
 
   useEffect(() => {
@@ -72,6 +83,7 @@ export function ChatWidget() {
     setVerified(false);
     setShowVerify(false);
     token.current = undefined;
+    verifiedAs.current = null;
     conversationId.current++;
   }
 
@@ -127,7 +139,10 @@ export function ChatWidget() {
     const res = await post({ verify: { orderNumber: order, email } });
     if (res) {
       setMessages((m) => [...m, { from: "system", text: res.reply ?? "" }]);
-      if (res.verified) setShowVerify(false);
+      if (res.verified) {
+        verifiedAs.current = email.trim().toLowerCase();
+        setShowVerify(false);
+      }
     }
   }
 

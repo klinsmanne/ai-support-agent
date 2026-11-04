@@ -7,6 +7,7 @@ export function TryButton(props: PrefillDetail) {
   return (
     <button
       type="button"
+      aria-label={`Try in the chat: ${props.text}`}
       onClick={() => {
         document.getElementById("chat")?.scrollIntoView({ behavior: "smooth", block: "center" });
         window.dispatchEvent(new CustomEvent<PrefillDetail>(PREFILL_EVENT, { detail: props }));

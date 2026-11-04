@@ -41,7 +41,7 @@ const STAGES = [
 export function Architecture() {
   return (
     <div>
-      <ol className="grid gap-3 md:grid-cols-5">
+      <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {STAGES.map((s, i) => (
           <li key={s.title} className="relative">
             <div className="h-full rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
@@ -52,14 +52,14 @@ export function Architecture() {
                   <li key={it}>{it}</li>
                 ))}
               </ul>
-              <p className="mt-3 border-t border-zinc-100 pt-2 text-[11px] text-zinc-500 dark:border-zinc-900">
+              <p className="mt-3 border-t border-zinc-100 pt-2 text-xs text-zinc-600 dark:border-zinc-900 dark:text-zinc-400">
                 {s.note}
               </p>
             </div>
             {i < STAGES.length - 1 && (
               <span
                 aria-hidden
-                className="absolute top-1/2 -right-2.5 z-10 hidden -translate-y-1/2 text-zinc-400 md:block"
+                className="absolute top-1/2 -right-2.5 z-10 hidden -translate-y-1/2 text-zinc-400 lg:block"
               >
                 →
               </span>

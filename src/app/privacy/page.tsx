@@ -25,7 +25,8 @@ export default function Privacy() {
           </li>
           <li>
             <strong>Chat:</strong> the messages you type and any order number and email you enter to
-            verify. Your IP address is used only for rate limiting.
+            verify. A one-way hash of your IP address is stored with the chat session, and your IP
+            is used in short-lived counters, both only to prevent abuse.
           </li>
           <li>
             <strong>Dashboard sign-in:</strong> the email address of invited team members.
@@ -56,19 +57,18 @@ export default function Privacy() {
       <section>
         <h2>Google user data</h2>
         <p>
-          The Gmail connection is used only for the support inbox this app operates, to read
-          incoming support email and send replies. Its use of information received from Google APIs
-          adheres to the Google API Services User Data Policy, including the Limited Use
-          requirements. Gmail data is not used to train AI models and is not shared except with the
-          processors listed above to answer the message.
+          The Gmail connection is used only for the support inbox this app operates: to read
+          incoming support email and send replies. To write a reply, the text of your email is sent
+          to the AI providers listed above, including Gemini&apos;s free tier. Gmail data is not
+          sold, not used for advertising, and not shared with anyone else.
         </p>
       </section>
       <section>
         <h2>Retention and deletion</h2>
         <p>
-          Messages are kept for a limited time (90 days by default) so the team can review them,
-          then deleted. Personal data is masked in internal logs. To have your messages deleted
-          sooner, email {contact} and we&apos;ll remove them.
+          Messages are kept for up to 90 days so the team can review them. Personal data is masked
+          in internal logs. To have your messages deleted, email {contact} and we&apos;ll remove
+          them.
         </p>
       </section>
       <section>

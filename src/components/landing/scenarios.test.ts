@@ -9,13 +9,12 @@ type Tenant = {
 };
 const load = (slug: string): Tenant =>
   JSON.parse(readFileSync(join(process.cwd(), "tenants", slug, "tenant.json"), "utf8"));
-const SLUG = { "Harbor & Pine": "harbor-pine", "Cadence Analytics": "cadence-analytics" } as const;
 
 describe("landing page scenarios", () => {
   it.each(SCENARIOS.filter((s) => s.verify))(
     "$verify.order belongs to $verify.email in the seed data",
     (s) => {
-      const t = load(SLUG[s.tenant]);
+      const t = load(s.tenant);
       const order = t.orders.find((o) => o.order_number === s.verify!.order);
       expect(order, "order exists").toBeDefined();
       const owner = t.customers.find((c) => c.email === s.verify!.email);
