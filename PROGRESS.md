@@ -13,12 +13,16 @@ _Last updated: 2026-11-04_
 
 - **Milestone D — Agent (PR #9, merged).**
 - **Milestone E — Channels (PR #10, merged):** Gmail + chat pipeline, DMARC-aligned sender auth, at-most-once processing.
+- **Milestone F — Dashboard (PR #11, merged):** invite-only sign-in, read-only public demo (viewer privacy in RLS), trace view, approvals that execute the pending action first, settings + kill switch, KPI metrics.
 - **Gmail:** support inbox `integralplantsupport@gmail.com` connected (OAuth app in Testing mode; refresh token in Keychain — expires after 7 days until the app is published, which needs a live homepage + privacy URL).
 
 ## In progress (resume here)
 
-- **Milestone F — Dashboard (PR #11):** invite-only sign-in links from the support inbox, read-only public demo, tickets + trace view, escalation approve/edit/reject that executes the pending refund/address change first, owner settings (kill switch, thresholds), KPI metrics, free-tier usage. Review findings fixed (ADR-018): viewer privacy in RLS, approval ordering, APP_URL-only links, timing-safe sign-in, demo via one-time token, security headers, httpOnly cookies, search quoting, metrics v2. Migrations 7–8 live and verified. 228 tests. → merge after CI.
-- Then **Milestone G — Landing page.**
+- **Milestone G — Landing page (PR #12):** problem → how it works (architecture, resolve vs escalate) → try it (scenario buttons prefill the chat; demo-email buttons for both tenants) → live aggregate numbers (demo tenants only, cached per minute) → privacy note; `/privacy` and `/terms` for the Gmail OAuth app. Security + quality review findings fixed. 235 tests. → merge after CI.
+- Then **Milestone H — Hardening + THREAT_MODEL.** Must-dos carried from the G review:
+  - **Retention purge** (`purge_expired()` deleting tickets/messages/traces older than `tenants.retention_days`, scheduled with pg_cron) — the privacy page promises "up to 90 days"; ship before the site goes public in J.
+  - **Email content only to no-training providers** (Groq), then restore a Google API "Limited Use" statement on `/privacy`.
+  - Schedule `prune_rate_limits()`; nonce-based CSP `script-src`; daily demo-data reset (shared demo refunds/address changes wear out); eval that "this is ridiculous" + duplicate charge still refunds.
 
 ## Previously in progress
 
@@ -27,7 +31,7 @@ _Last updated: 2026-11-04_
 ## Next
 
 - Milestone E — Channels: email pipeline (Gmail OAuth, poll via pg_cron, filters/dedupe/threading, SPF/DKIM/DMARC) + chat widget (verification, Turnstile)
-- Milestone F — Dashboard · G — Landing page · H — Hardening + THREAT_MODEL · I — Evals + model comparison · J — Production deploy
+- H — Hardening + THREAT_MODEL · I — Evals + model comparison · J — Production deploy
 - Accounts still needed: Vercel, Cloudflare (Turnstile), new support Gmail inbox
 - Dependabot PRs #2–#6 (TypeScript 7 and ESLint 10 are majors — test before merging)
 
