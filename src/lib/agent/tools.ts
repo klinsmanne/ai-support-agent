@@ -42,6 +42,8 @@ export type ActionRecord =
       orderNumber: string;
       status: "executed" | "proposed" | "denied";
       policy: string[];
+      /** The requested address, so a human approving a proposed change can apply it. */
+      address: Record<string, string>;
     };
 
 export interface ToolOutcome {
@@ -423,6 +425,7 @@ async function updateOrder(
     type: "address_change" as const,
     orderNumber: order.orderNumber,
     policy: policy.reasons,
+    address: { ...args.new_shipping_address } as Record<string, string>,
   };
   if (policy.decision !== "allow") {
     return {

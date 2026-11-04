@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { approveEscalation, rejectEscalation, type ActionResult } from "@/app/dashboard/actions";
 
 /** Approve / edit / reject a suggested reply. Server actions re-check the role; viewers see it read-only. */
@@ -19,7 +19,9 @@ export function EscalationPanel(props: {
     rejectEscalation,
     null,
   );
-  const state = approveState ?? rejectState;
+  // Show the result of whichever button was pressed last, not always the approve result.
+  const [last, setLast] = useState<"approve" | "reject" | null>(null);
+  const state = last === "reject" ? rejectState : last === "approve" ? approveState : null;
   return (
     <div className="space-y-3">
       <form action={approve} className="space-y-2">
@@ -44,6 +46,7 @@ export function EscalationPanel(props: {
         {props.canEdit ? (
           <div className="flex gap-2">
             <button
+              onClick={() => setLast("approve")}
               disabled={approving || rejecting}
               className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
             >
@@ -51,6 +54,7 @@ export function EscalationPanel(props: {
             </button>
             <button
               formAction={reject}
+              onClick={() => setLast("reject")}
               disabled={approving || rejecting}
               className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-zinc-700"
             >

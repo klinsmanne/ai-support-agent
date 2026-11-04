@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-11-03_
+_Last updated: 2026-11-04_
 
 ## Done
 
@@ -12,12 +12,13 @@ _Last updated: 2026-11-03_
 - **Milestone C — Database (PR #8, merged):** 20 tables, RLS everywhere, dashboard read-only at DB level, composite tenant FKs, hybrid pgvector + full-text retrieval, config-driven tenants, generated idempotent seed. Live in Supabase; KB embedded (29 chunks, gemini-embedding-2 @768d).
 
 - **Milestone D — Agent (PR #9, merged).**
+- **Milestone E — Channels (PR #10, merged):** Gmail + chat pipeline, DMARC-aligned sender auth, at-most-once processing.
 - **Gmail:** support inbox `integralplantsupport@gmail.com` connected (OAuth app in Testing mode; refresh token in Keychain — expires after 7 days until the app is published, which needs a live homepage + privacy URL).
 
 ## In progress (resume here)
 
-- **Milestone E — Channels (PR #10):** Gmail + chat channels and shared pipeline, verified live (chat answer from live DB; email reply in-thread; "human" reply escalated). Router handles daily free-tier quotas (ADR-015). Security + quality review findings fixed (ADR-016/017): DMARC-aligned sender auth, no backscatter, at-most-once processing with stale sweep, human-owned tickets, per-sender email tickets, draining poll queue, brute-force-resistant chat verification. 216 tests. → merge after CI.
-- Then **Milestone F — Dashboard** (Supabase Auth login, tickets + trace view, escalation approve/edit/send, settings incl. kill switch and Harbor threshold −0.85, metrics, free-tier usage).
+- **Milestone F — Dashboard (PR #11):** invite-only sign-in links from the support inbox, read-only public demo, tickets + trace view, escalation approve/edit/reject that executes the pending refund/address change first, owner settings (kill switch, thresholds), KPI metrics, free-tier usage. Review findings fixed (ADR-018): viewer privacy in RLS, approval ordering, APP_URL-only links, timing-safe sign-in, demo via one-time token, security headers, httpOnly cookies, search quoting, metrics v2. Migrations 7–8 live and verified. 228 tests. → merge after CI.
+- Then **Milestone G — Landing page.**
 
 ## Previously in progress
 
@@ -28,7 +29,6 @@ _Last updated: 2026-11-03_
 - Milestone E — Channels: email pipeline (Gmail OAuth, poll via pg_cron, filters/dedupe/threading, SPF/DKIM/DMARC) + chat widget (verification, Turnstile)
 - Milestone F — Dashboard · G — Landing page · H — Hardening + THREAT_MODEL · I — Evals + model comparison · J — Production deploy
 - Accounts still needed: Vercel, Cloudflare (Turnstile), new support Gmail inbox
-- Live DB: Harbor & Pine `escalate_on_negative_sentiment_below` must be updated to −0.85 (seed never overwrites settings)
 - Dependabot PRs #2–#6 (TypeScript 7 and ESLint 10 are majors — test before merging)
 
 ## Known issues
@@ -45,4 +45,4 @@ Paste this into a new Claude Code session opened in this folder:
 
 ## Decisions
 
-See `docs/DECISIONS.md` (ADR-001 … ADR-011).
+See `docs/DECISIONS.md` (ADR-001 … ADR-018).

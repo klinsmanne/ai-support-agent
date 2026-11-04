@@ -320,9 +320,96 @@ describe("dashboard_metrics", () => {
     expect(theirs).toMatchObject({ tickets_total: 0, auto_resolved: 0 });
   });
 
+  it("counts only approved drafts as assisted and keeps spam out of risk KPIs (v2)", async () => {
+    const before = (
+      await asUser<{ m: Record<string, number> }>(
+        db,
+        HARBOR_OWNER,
+        `select public.dashboard_metrics($1, 30) as m`,
+        [HARBOR],
+      )
+    ).rows[0].m;
+    await db.exec(`
+      insert into public.tickets (id, tenant_id, channel, status, is_spam, injection_suspected) values
+        ('00000000-0000-4000-8000-00000000a011', '${HARBOR}', 'email', 'resolved', false, false),
+        ('00000000-0000-4000-8000-00000000a012', '${HARBOR}', 'email', 'escalated', false, false),
+        ('00000000-0000-4000-8000-00000000a013', '${HARBOR}', 'email', 'closed', true, true);
+      insert into public.escalations (tenant_id, ticket_id, reason_codes, summary, status) values
+        ('${HARBOR}', '00000000-0000-4000-8000-00000000a011', array['draft_review'], 'x', 'approved'),
+        ('${HARBOR}', '00000000-0000-4000-8000-00000000a012', array['draft_review'], 'x', 'rejected');
+    `);
+    const after = (
+      await asUser<{ m: Record<string, number> }>(
+        db,
+        HARBOR_OWNER,
+        `select public.dashboard_metrics($1, 30) as m`,
+        [HARBOR],
+      )
+    ).rows[0].m;
+    expect(after.assisted - before.assisted).toBe(1); // the rejected draft doesn't count
+    expect(after.escalated - before.escalated).toBe(0); // draft review alone isn't an escalation
+    expect(after.injection_flagged - before.injection_flagged).toBe(0); // spam excluded
+  });
+
   it("is not callable anonymously", async () => {
     await expect(
       asUser(db, null, `select public.dashboard_metrics('${HARBOR}', 30)`),
     ).rejects.toThrow(/permission denied/);
+  });
+});
+
+describe("viewer privacy (public demo account)", () => {
+  const REAL = "00000000-0000-4000-8000-00000000b001";
+  const DEMO = "00000000-0000-4000-8000-00000000b002";
+  const CHAT = "00000000-0000-4000-8000-00000000b003";
+  beforeAll(async () => {
+    await db.exec(`
+      insert into public.tickets (id, tenant_id, channel, subject, requester_email, customer_id) values
+        ('${REAL}', '${HARBOR}', 'email', 'from a real person', 'someone@real.example', null),
+        ('${DEMO}', '${HARBOR}', 'email', 'fictional customer', 'olivia.bennett@example.com', (select id from public.customers where tenant_id = '${HARBOR}' limit 1)),
+        ('${CHAT}', '${HARBOR}', 'chat', 'Website chat', null, null);
+      insert into public.messages (tenant_id, ticket_id, direction, author, status, body) values
+        ('${HARBOR}', '${REAL}', 'inbound', 'customer', 'received', 'my real private message');
+      insert into public.audit_log (tenant_id, actor_type, action, entity_type, entity_id) values
+        ('${HARBOR}', 'system', 'x', 'ticket', '${REAL}');
+    `);
+  });
+
+  const visible = async (user: string, sql: string) =>
+    (await asUser<{ n: number }>(db, user, sql)).rows[0].n;
+
+  it("viewers can't read real senders' tickets or messages, but see demo customers and chat", async () => {
+    const ids = `('${REAL}','${DEMO}','${CHAT}')`;
+    expect(
+      await visible(HARBOR_VIEWER, `select count(*)::int n from public.tickets where id in ${ids}`),
+    ).toBe(2);
+    expect(
+      await visible(
+        HARBOR_VIEWER,
+        `select count(*)::int n from public.tickets where id = '${REAL}'`,
+      ),
+    ).toBe(0);
+    expect(
+      await visible(
+        HARBOR_VIEWER,
+        `select count(*)::int n from public.messages where ticket_id = '${REAL}'`,
+      ),
+    ).toBe(0);
+  });
+
+  it("owners still see every ticket of their tenant", async () => {
+    expect(
+      await visible(
+        HARBOR_OWNER,
+        `select count(*)::int n from public.tickets where id in ('${REAL}','${DEMO}','${CHAT}')`,
+      ),
+    ).toBe(3);
+  });
+
+  it("the audit log is staff-only", async () => {
+    expect(await visible(HARBOR_VIEWER, `select count(*)::int n from public.audit_log`)).toBe(0);
+    expect(
+      await visible(HARBOR_OWNER, `select count(*)::int n from public.audit_log`),
+    ).toBeGreaterThan(0);
   });
 });

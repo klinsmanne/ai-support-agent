@@ -76,12 +76,12 @@ async function Overview({
           <Stat
             label="Agent hours saved"
             value={`${num("hours_saved")} h`}
-            hint="8 min per auto-resolved ticket"
+            hint="8 min per auto-resolved · 4 min per approved draft"
           />
           <Stat
             label="Cost per ticket"
             value={cost === null || cost === undefined ? "—" : `$${cost.toFixed(2)}`}
-            hint="vs $7.80 human baseline (AI at paid-tier list prices)"
+            hint="vs $7.80 human baseline · drafts count $3.90 (AI at paid-tier list prices)"
           />
           <Stat
             label="CSAT"

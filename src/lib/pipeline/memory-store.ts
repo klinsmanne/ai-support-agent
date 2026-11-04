@@ -30,6 +30,7 @@ export class MemoryStore implements PipelineStore {
     ticketId: string;
     reasonCodes: string[];
     suggestedReply: string | null;
+    pendingAction?: unknown;
   }[] = [];
   auditLog: { action: string; reason?: string }[] = [];
   private limits = new Map<string, number>();
@@ -141,7 +142,7 @@ export class MemoryStore implements PipelineStore {
   async createEscalation(
     _tenantId: string,
     ticketId: string,
-    e: { reasonCodes: string[]; suggestedReply: string | null },
+    e: { reasonCodes: string[]; suggestedReply: string | null; pendingAction?: unknown },
   ) {
     const id = `esc-${this.escalations.length + 1}`;
     this.escalations.push({
@@ -149,6 +150,7 @@ export class MemoryStore implements PipelineStore {
       ticketId,
       reasonCodes: e.reasonCodes,
       suggestedReply: e.suggestedReply,
+      pendingAction: e.pendingAction,
     });
     return id;
   }

@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
+import { AUTH_COOKIE_OPTIONS } from "./cookie-options";
 
 /**
  * Supabase client acting AS the signed-in dashboard user (publishable key + their session cookie).
@@ -15,6 +16,7 @@ export async function createUserClient(): Promise<SupabaseClient> {
   if (!url || !key) throw new Error("Supabase is not configured");
   const store = await cookies();
   return createServerClient(url, key, {
+    cookieOptions: AUTH_COOKIE_OPTIONS,
     cookies: {
       getAll: () => store.getAll(),
       setAll: (toSet) => {

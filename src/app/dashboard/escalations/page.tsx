@@ -27,8 +27,8 @@ async function Escalations({ searchParams }: { searchParams: Params }) {
       />
       <h1 className="mb-1 text-lg font-semibold">Human review queue</h1>
       <p className="mb-4 text-sm text-zinc-500">
-        Oldest first. Each item has a summary, what the agent investigated, why it escalated and a
-        suggested reply.
+        Oldest first. Each item shows why it escalated, a summary and the suggested reply; open the
+        ticket to see what the agent investigated.
       </p>
       {items.length === 0 ? (
         <p className="rounded-xl border border-zinc-200 bg-white p-6 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950">

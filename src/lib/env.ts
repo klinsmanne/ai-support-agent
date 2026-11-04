@@ -28,7 +28,6 @@ const serverEnvSchema = z.object({
   CSRF_SECRET: optional(z.string().min(32)),
   // Dashboard: public read-only demo account and the site's canonical URL
   DEMO_VIEWER_EMAIL: optional(z.email()),
-  DEMO_VIEWER_PASSWORD: optional(z.string().min(16)),
   APP_URL: optional(z.url()),
   // Gmail channel
   GMAIL_CLIENT_ID: optional(z.string().min(1)),

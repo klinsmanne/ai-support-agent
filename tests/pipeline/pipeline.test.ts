@@ -199,6 +199,38 @@ describe("email pipeline", () => {
     expect(store.messages.find((m) => m.direction === "outbound")?.status).toBe("pending_approval");
   });
 
+  it("a draft that proposes a refund carries it, so approving the draft executes it (review finding)", async () => {
+    repo.setRolloutMode(HP, "draft_only");
+    const r = router(
+      [
+        [
+          call("issue_refund", {
+            order_number: "1051",
+            amount_cents: 6400,
+            reason: "duplicate_charge",
+          }),
+        ],
+        [call("send_reply", { message: "Your refund is on its way." })],
+      ],
+      { intent: "refund_or_billing" },
+    );
+    await ingestMessage(
+      email({
+        from: { email: "marcus.lee@example.com", name: null },
+        text: "Charged twice for 1051",
+      }),
+      deps(r),
+    );
+    expect(store.escalations[0].reasonCodes).toEqual(["draft_review"]);
+    expect(store.escalations[0].pendingAction).toMatchObject({
+      type: "refund",
+      orderNumber: "1051",
+      amountCents: 6400,
+      status: "proposed",
+    });
+    expect(repo.refunds).toHaveLength(0); // nothing moves until a human approves
+  });
+
   it("shadow mode stores a draft only", async () => {
     repo.setRolloutMode(HP, "shadow");
     const r = router([[call("send_reply", { message: "Draft" })]]);

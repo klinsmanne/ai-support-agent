@@ -1,6 +1,6 @@
 /**
  * Provisions dashboard access (idempotent):
- *  - the public read-only demo viewer (random password, stored in the Keychain only), viewer role on
+ *  - the public read-only demo viewer (no usable password; signs in via a one-time server token), viewer role on
  *    every tenant;
  *  - an owner (invited by email; signs in with a magic link), owner role on every tenant.
  * Usage: npm run dashboard:users -- [owner-email]
@@ -58,16 +58,12 @@ async function grant(userId: string, role: "owner" | "viewer") {
   if (error) throw new Error(error.message);
 }
 
-// Demo viewer: password rotated on every run, never printed.
+// Demo viewer: random password that nobody keeps (sign-in is a server-minted one-time token).
 const demoEmail = env.DEMO_VIEWER_EMAIL || "demo-viewer@support-agent.example";
-const demoPassword = randomBytes(24).toString("base64url");
-const demoId = await ensureUser(demoEmail, demoPassword);
+const demoId = await ensureUser(demoEmail, randomBytes(32).toString("base64url"));
 await grant(demoId, "viewer");
 setSecret("DEMO_VIEWER_EMAIL", demoEmail);
-setSecret("DEMO_VIEWER_PASSWORD", demoPassword);
-console.log(
-  `✓ demo viewer ready (viewer on ${tenants.length} tenants); password stored in Keychain`,
-);
+console.log(`✓ demo viewer ready (viewer on ${tenants.length} tenants); no stored password`);
 
 if (ownerEmail) {
   const ownerId = await ensureUser(ownerEmail);

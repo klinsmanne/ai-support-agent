@@ -37,7 +37,6 @@ const VARS = {
   TURNSTILE_SECRET_KEY: { secret: true },
   CSRF_SECRET: { secret: true },
   DEMO_VIEWER_EMAIL: { secret: false },
-  DEMO_VIEWER_PASSWORD: { secret: true },
   APP_URL: { secret: false },
 };
 

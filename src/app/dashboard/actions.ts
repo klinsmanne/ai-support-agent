@@ -1,6 +1,5 @@
 "use server";
 
-import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getViewer, requireRole } from "@/lib/auth/server";
@@ -37,6 +36,7 @@ export async function approveEscalation(
   } catch {
     return { ok: false, message: "Your role can't approve replies (read-only)." };
   }
+  const userId = viewer!.userId;
   const c = getContainer();
   const db = c.db;
 
@@ -61,9 +61,10 @@ export async function approveEscalation(
     .single();
   if (!ticket || !settings) return { ok: false, message: "Ticket not found." };
 
-  const edited = parsed.data.reply && parsed.data.reply !== esc.suggested_reply;
-  const body = (parsed.data.reply || esc.suggested_reply || "").trim();
+  // An explicitly cleared textarea means "no reply", never "fall back to the AI suggestion".
+  const body = (parsed.data.reply ?? esc.suggested_reply ?? "").trim();
   if (!body) return { ok: false, message: "Write a reply before sending." };
+  const edited = body !== (esc.suggested_reply ?? "").trim();
   // Human replies go through the same output checks as AI replies (no foreign emails, unapproved links…).
   const verdict = validateReply(body, {
     canary: "",
@@ -78,55 +79,168 @@ export async function approveEscalation(
       message: `Reply blocked by safety checks: ${verdict.violations.join(", ")}`,
     };
 
-  // Claim the escalation first (conditional on still pending): two people clicking "Approve" at
-  // once can't both send. Released again below if anything fails before the reply goes out.
+  // 1. Claim (conditional on still pending): two people clicking "Approve" at once can't both act.
   const claimedAt = new Date().toISOString();
   const { data: claimed } = await db
     .from("escalations")
-    .update({
-      status: edited ? "edited" : "approved",
-      resolved_by: viewer!.userId,
-      resolved_at: claimedAt,
-    })
+    .update({ status: edited ? "edited" : "approved", resolved_by: userId, resolved_at: claimedAt })
     .eq("tenant_id", tenantId)
     .eq("id", escalationId)
     .eq("status", "pending")
     .select("id");
   if (!claimed?.length) return { ok: false, message: "Someone else just handled this escalation." };
+  // Release only our own claim, and only while nothing irreversible has happened yet.
   const release = async (message: string): Promise<ActionResult> => {
     await db
       .from("escalations")
       .update({ status: "pending", resolved_by: null, resolved_at: null })
       .eq("tenant_id", tenantId)
-      .eq("id", escalationId);
+      .eq("id", escalationId)
+      .eq("resolved_by", userId)
+      .eq("resolved_at", claimedAt);
     return { ok: false, message };
   };
 
-  // A pending refund approved by a human executes now, still through the atomic balance check.
-  const pending = esc.pending_action as {
-    type?: string;
-    orderNumber?: string;
-    amountCents?: number;
-    reason?: string;
-  } | null;
-  if (
-    pending?.type === "refund" &&
-    pending.orderNumber &&
-    pending.amountCents &&
-    ticket.customer_id
-  ) {
-    const { data: order } = await db
-      .from("orders")
-      .select("id")
+  // 2. Execute the action the reply talks about (a refund or address change awaiting approval),
+  //    BEFORE sending — so the customer is never told about something that didn't happen.
+  const action = await executePendingAction(
+    tenantId,
+    escalationId,
+    esc.pending_action,
+    ticket,
+    userId,
+  );
+  if (!action.ok) return release(action.message);
+
+  // 3. Send. If it fails after an action executed, don't pretend nothing happened: the action
+  //    stays done, the ticket goes to needs_attention and the message says so.
+  const signed = `${body}\n\n— ${settings.brand_name} support team`;
+  const sendResult = await sendHumanReply(ticket, signed);
+  if (!sendResult.ok) {
+    if (!action.executed) return release(sendResult.message);
+    await db
+      .from("tickets")
+      .update({ status: "needs_attention" })
       .eq("tenant_id", tenantId)
-      .eq("order_number", pending.orderNumber)
-      .eq("customer_id", ticket.customer_id)
-      .maybeSingle();
-    if (!order) return release("Order for the pending refund not found.");
-    const key = createHash("sha256")
-      .update([order.id, pending.reason].join("|"))
-      .digest("hex")
-      .slice(0, 32);
+      .eq("id", ticket.id);
+    await audit(
+      tenantId,
+      userId,
+      "escalation:action_done_reply_failed",
+      "ticket",
+      ticket.id,
+      sendResult.message,
+    );
+    revalidateDashboard(ticket.id);
+    return {
+      ok: false,
+      message: `${action.executed} was executed, but the reply wasn't sent (${sendResult.message}). The ticket is marked "needs attention" — reply manually.`,
+    };
+  }
+
+  // 4. Record. The email is already out, so failures here are reported, not hidden.
+  const now = new Date().toISOString();
+  const problems: string[] = [];
+  const check = (what: string, r: { error: { message: string } | null }) => {
+    if (r.error) problems.push(`${what}: ${r.error.message}`);
+  };
+  check(
+    "save reply",
+    await db.from("messages").insert({
+      tenant_id: tenantId,
+      ticket_id: ticket.id,
+      direction: "outbound",
+      author: "human",
+      status: "sent",
+      body: signed,
+      sent_at: now,
+      provider_message_id: sendResult.providerMessageId ?? null,
+    }),
+  );
+  check(
+    "retire AI draft",
+    await db
+      .from("messages")
+      .update({ status: "rejected" })
+      .eq("tenant_id", tenantId)
+      .eq("ticket_id", ticket.id)
+      .eq("status", "pending_approval"),
+  );
+  check(
+    "resolve ticket",
+    await db
+      .from("tickets")
+      .update({
+        status: "resolved",
+        resolved_at: now,
+        ...(ticket.first_response_at ? {} : { first_response_at: now }),
+      })
+      .eq("tenant_id", tenantId)
+      .eq("id", ticket.id),
+  );
+  if (ticket.channel === "email") await c.store.addUsage("gmail", "emails_sent", 1);
+  await audit(
+    tenantId,
+    userId,
+    edited ? "escalation:edited_and_sent" : "escalation:approved_and_sent",
+    "ticket",
+    ticket.id,
+    [esc.reason_codes.join(", "), action.executed].filter(Boolean).join(" · "),
+  );
+  revalidateDashboard(ticket.id);
+  const sentMsg =
+    ticket.channel === "email" ? "Reply sent by email." : "Reply saved to the chat conversation.";
+  if (problems.length)
+    return { ok: true, message: `${sentMsg} Some records didn't save (${problems.join("; ")}).` };
+  return {
+    ok: true,
+    message: action.executed ? `${action.executed} executed. ${sentMsg}` : sentMsg,
+  };
+}
+
+type PendingAction = {
+  type?: string;
+  orderNumber?: string;
+  amountCents?: number;
+  reason?: string;
+  address?: Record<string, string>;
+} | null;
+
+/**
+ * Runs the account action an escalation proposed, after human approval. Refunds still go through
+ * the atomic create_refund_checked (row lock + balance check); the idempotency key is this
+ * escalation, so a retry can't double-refund and a *different* later refund isn't mistaken for a
+ * duplicate. Address changes re-check "not shipped yet" inside the write.
+ */
+async function executePendingAction(
+  tenantId: string,
+  escalationId: string,
+  pending: PendingAction,
+  ticket: { id: string; customer_id: string | null },
+  userId: string,
+): Promise<{ ok: true; executed: string | null } | { ok: false; message: string }> {
+  if (!pending?.type || !pending.orderNumber) return { ok: true, executed: null };
+  if (!ticket.customer_id) {
+    return {
+      ok: false,
+      message: "This ticket has no verified customer, so the account action can't run.",
+    };
+  }
+  const db = getContainer().db;
+  const { data: order } = await db
+    .from("orders")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("order_number", pending.orderNumber)
+    .eq("customer_id", ticket.customer_id)
+    .maybeSingle();
+  if (!order)
+    return {
+      ok: false,
+      message: `Order ${pending.orderNumber} not found on this customer's account.`,
+    };
+
+  if (pending.type === "refund" && pending.amountCents) {
     const { data: res, error } = await db.rpc("create_refund_checked", {
       p_tenant_id: tenantId,
       p_order_id: order.id,
@@ -135,73 +249,67 @@ export async function approveEscalation(
       p_amount_cents: pending.amountCents,
       p_reason: pending.reason ?? "other",
       p_status: "approved",
-      p_idempotency_key: key,
+      p_idempotency_key: `escalation:${escalationId}`,
       p_max_refunds_30d: 100, // a human approval overrides the frequency guard, not the balance check
     });
     const row = (res as { refund_id: string | null; outcome: string }[] | null)?.[0];
     if (error || !row || (row.outcome !== "created" && row.outcome !== "duplicate")) {
-      return release(`Refund not executed: ${error?.message ?? row?.outcome}`);
+      return {
+        ok: false,
+        message: `Refund not executed: ${error?.message ?? row?.outcome}. Nothing was sent.`,
+      };
     }
-    if (row.refund_id)
+    if (row.refund_id) {
       await db
         .from("refunds")
-        .update({ decided_by: "human", decided_by_user: viewer!.userId })
+        .update({ decided_by: "human", decided_by_user: userId })
         .eq("tenant_id", tenantId)
         .eq("id", row.refund_id);
+    }
+    const label = `Refund of $${(pending.amountCents / 100).toFixed(2)} on order ${pending.orderNumber}`;
     await audit(
       tenantId,
-      viewer!.userId,
-      "refund:approved_by_human",
+      userId,
+      `refund:approved_by_human${row.outcome === "duplicate" ? ":already_done" : ""}`,
       "order",
       pending.orderNumber,
-      `approved ${pending.amountCents} cents`,
+      label,
     );
+    return { ok: true, executed: label };
   }
 
-  const signed = `${body}\n\n— ${settings.brand_name} support team`;
-  const sendResult = await sendHumanReply(ticket, signed);
-  if (!sendResult.ok) return release(sendResult.message);
+  if (pending.type === "address_change" && pending.address) {
+    const { data: updated, error } = await db
+      .from("orders")
+      .update({ shipping_address: pending.address })
+      .eq("tenant_id", tenantId)
+      .eq("id", order.id)
+      .in("status", ["pending", "processing"])
+      .select("id");
+    if (error || !updated?.length) {
+      return {
+        ok: false,
+        message: "Address not changed (the order may have shipped). Nothing was sent.",
+      };
+    }
+    const label = `Address change on order ${pending.orderNumber}`;
+    await audit(
+      tenantId,
+      userId,
+      "address_change:approved_by_human",
+      "order",
+      pending.orderNumber,
+      label,
+    );
+    return { ok: true, executed: label };
+  }
+  return { ok: true, executed: null };
+}
 
-  const now = new Date().toISOString();
-  await db.from("messages").insert({
-    tenant_id: tenantId,
-    ticket_id: ticket.id,
-    direction: "outbound",
-    author: "human",
-    status: "sent",
-    body: signed,
-    sent_at: now,
-    provider_message_id: sendResult.providerMessageId ?? null,
-  });
-  await db
-    .from("messages")
-    .update({ status: "rejected" })
-    .eq("tenant_id", tenantId)
-    .eq("ticket_id", ticket.id)
-    .eq("status", "pending_approval");
-  await db
-    .from("tickets")
-    .update({
-      status: "resolved",
-      resolved_at: now,
-      ...(ticket.first_response_at ? {} : { first_response_at: now }),
-    })
-    .eq("tenant_id", tenantId)
-    .eq("id", ticket.id);
-  await audit(
-    tenantId,
-    viewer!.userId,
-    edited ? "escalation:edited_and_sent" : "escalation:approved_and_sent",
-    "ticket",
-    ticket.id,
-    esc.reason_codes.join(", "),
-  );
-  revalidatePath(`/dashboard/tickets/${ticket.id}`);
-  return {
-    ok: true,
-    message:
-      ticket.channel === "email" ? "Reply sent by email." : "Reply saved to the chat conversation.",
-  };
+function revalidateDashboard(ticketId: string) {
+  revalidatePath(`/dashboard/tickets/${ticketId}`);
+  revalidatePath("/dashboard/escalations");
+  revalidatePath("/dashboard");
 }
 
 export async function rejectEscalation(
@@ -245,7 +353,7 @@ export async function rejectEscalation(
     esc.ticket_id,
     "suggested reply rejected; handle manually",
   );
-  revalidatePath(`/dashboard/tickets/${esc.ticket_id}`);
+  revalidateDashboard(esc.ticket_id);
   return { ok: true, message: "Suggested reply rejected. The ticket stays with your team." };
 }
 

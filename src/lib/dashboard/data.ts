@@ -50,15 +50,17 @@ export async function listTickets(
     query = query.eq("status", f.status);
   if (f.channel === "email" || f.channel === "chat") query = query.eq("channel", f.channel);
   if (f.q) {
-    // Escape PostgREST/LIKE metacharacters so search text can't alter the filter.
+    // Strip LIKE wildcards and quote/escape characters, then double-quote the value so commas,
+    // dots and parentheses in search text can't break or alter the PostgREST filter.
     const term = f.q
-      .replace(/[%_,()*\\]/g, " ")
+      .replace(/[%_*"\\]/g, " ")
+      .replace(/\s+/g, " ")
       .trim()
       .slice(0, 80);
-    if (term)
-      query = query.or(
-        `subject.ilike.%${term}%,requester_email.ilike.%${term}%,intent.ilike.%${term}%`,
-      );
+    if (term) {
+      const v = `"%${term}%"`;
+      query = query.or(`subject.ilike.${v},requester_email.ilike.${v},intent.ilike.${v}`);
+    }
   }
   const { data, error } = await query;
   if (error) throw new Error(`tickets: ${error.message}`);
@@ -96,6 +98,10 @@ export async function getTicketDetail(db: SupabaseClient, tenantId: string, tick
       .order("created_at", { ascending: false })
       .limit(50),
   ]);
+  // Surface query failures instead of rendering a half-empty page that looks like "no data".
+  for (const [what, r] of Object.entries({ ticket, messages, runs, escalations, audit })) {
+    if (r.error) throw new Error(`${what}: ${r.error.message}`);
+  }
   if (!ticket.data) return null;
   return {
     ticket: ticket.data,
@@ -110,7 +116,7 @@ export async function getTicketDetail(db: SupabaseClient, tenantId: string, tick
 }
 
 export async function listPendingEscalations(db: SupabaseClient, tenantId: string) {
-  const { data } = await db
+  const { data, error } = await db
     .from("escalations")
     .select(
       "id, ticket_id, reason_codes, summary, suggested_reply, created_at, tickets(subject, requester_email, channel)",
@@ -119,6 +125,7 @@ export async function listPendingEscalations(db: SupabaseClient, tenantId: strin
     .eq("status", "pending")
     .order("created_at", { ascending: true })
     .limit(50);
+  if (error) throw new Error(`escalations: ${error.message}`);
   return data ?? [];
 }
 
