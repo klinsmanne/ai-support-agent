@@ -169,7 +169,7 @@ export async function runAgent(
   if (settings.kill_switch) {
     record({ type: "guardrail", name: "kill_switch", output: { active: true } });
     return escalate(
-      ["agent_error"],
+      ["kill_switch_active"],
       "AI agent is paused for this tenant (kill switch). Ticket routed to the human queue.",
       null,
     );

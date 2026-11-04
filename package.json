@@ -21,7 +21,8 @@
     "kb:search": "tsx scripts/kb-search.ts",
     "gmail:auth": "tsx scripts/gmail-auth.ts",
     "email:poll": "tsx --conditions=react-server scripts/email-poll.ts",
-    "email:unspam": "tsx --conditions=react-server scripts/email-unspam.ts"
+    "email:unspam": "tsx --conditions=react-server scripts/email-unspam.ts",
+    "dashboard:users": "tsx scripts/setup-dashboard-users.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",

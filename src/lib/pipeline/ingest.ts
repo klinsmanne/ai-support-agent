@@ -297,6 +297,8 @@ export async function ingestMessage(
             summary: c?.summary ?? "AI draft awaiting approval",
             investigation: investigation(result),
             suggestedReply: replyText,
+            // A draft that proposes a refund/address change carries it, so approval executes it.
+            pendingAction: pendingActionOf(result),
           });
         }
         await store.updateTicket(tenantId, ticket.id, {
@@ -313,7 +315,7 @@ export async function ingestMessage(
         summary: result.escalation?.summary ?? "Agent error",
         investigation: investigation(result),
         suggestedReply: result.escalation?.suggestedReply ?? null,
-        pendingAction: result.actions.find((a) => a.status === "pending_approval") ?? null,
+        pendingAction: pendingActionOf(result),
       });
       // A short holding reply keeps first-response time low while a human reviews.
       if (
@@ -471,6 +473,13 @@ async function deliver(
     });
     return "none";
   }
+}
+
+/** The account action awaiting a human: proposed (draft/shadow mode) or needing approval (over limit). */
+function pendingActionOf(result: AgentResult) {
+  return (
+    result.actions.find((a) => a.status === "proposed" || a.status === "pending_approval") ?? null
+  );
 }
 
 function investigation(result: AgentResult) {

@@ -36,6 +36,8 @@ const VARS = {
   TURNSTILE_SITE_KEY: { secret: false },
   TURNSTILE_SECRET_KEY: { secret: true },
   CSRF_SECRET: { secret: true },
+  DEMO_VIEWER_EMAIL: { secret: false },
+  APP_URL: { secret: false },
 };
 
 const service = (name) => `${ACCOUNT}/${name}`;

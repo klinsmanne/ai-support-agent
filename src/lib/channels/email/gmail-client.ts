@@ -150,6 +150,20 @@ export class GmailClient implements ChannelSender {
     return { providerMessageId: sent.id };
   }
 
+  /** Sends a new (non-reply) system email, e.g. a dashboard sign-in link. */
+  async sendNew(to: string, subject: string, body: string): Promise<{ providerMessageId: string }> {
+    const raw = composeReplyMime(
+      { channel: "email", threadKey: "", to, subject, body },
+      { email: this.cfg.address, name: this.cfg.displayName },
+      { isReply: false },
+    );
+    const sent = await this.call<{ id: string }>("/messages/send", {
+      method: "POST",
+      body: JSON.stringify({ raw: toBase64Url(raw) }),
+    });
+    return { providerMessageId: sent.id };
+  }
+
   /** Moves a message out of Spam into the inbox (operator action for false-positive spam). */
   async markNotSpam(messageId: string): Promise<void> {
     await this.call(`/messages/${encodeURIComponent(messageId)}/modify`, {

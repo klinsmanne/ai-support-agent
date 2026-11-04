@@ -95,3 +95,10 @@ Architecture decision records (ADRs) — short, with context and trade-offs. New
 
 - **Decision:** a provider message is processed at most once — failures (or runs stuck in `processing` > 10 min, swept each poll) become `needs_attention` instead of being re-run, because a re-run could email the customer twice. Follow-ups on `escalated`/`needs_attention` tickets are attached without running the AI. Email tickets are keyed by Gmail thread **and sender**, so a stranger replying into a thread never sees another customer's history.
 - **Poller:** fetched ids go into a persisted queue and the history cursor advances immediately, so a backlog larger than one cycle drains instead of stalling.
+
+## ADR-018: The public demo sees only fictional data; approval executes the action before the reply
+
+- **Context (security review, milestone F):** the demo viewer role could read every ticket, including email tickets from real people who wrote to the support inbox. Approving a draft that promised a refund sent the promise without issuing the refund.
+- **Decision — viewer privacy in the database:** `can_read_ticket()` lets owners/agents see everything; viewers see only tickets tied to a seeded (fictional) customer or from the chat widget. Messages, escalations, runs and traces follow their ticket; the audit log is staff-only. RLS enforces it, so no dashboard bug can leak it.
+- **Decision — approval order:** claim the escalation (conditional on `pending`, so a double click can't act twice), execute the proposed action (refunds through the atomic `create_refund_checked` with idempotency key `escalation:<id>`), and only then send the reply. If sending fails after the action ran, the ticket goes to `needs_attention` instead of rolling back silently.
+- **Decision — sign-in:** links are built from `APP_URL` only (required in production; a forged Host header can't redirect a token), membership lookup and sending run in `after()` so neither the response text nor its timing reveals who is invited, and the demo signs in through a server-minted one-time token (no shared password to change or leak).

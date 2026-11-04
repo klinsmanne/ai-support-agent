@@ -26,6 +26,9 @@ const serverEnvSchema = z.object({
   // Signs scheduled/cron calls and CSRF tokens
   CRON_SECRET: optional(z.string().min(32)),
   CSRF_SECRET: optional(z.string().min(32)),
+  // Dashboard: public read-only demo account and the site's canonical URL
+  DEMO_VIEWER_EMAIL: optional(z.email()),
+  APP_URL: optional(z.url()),
   // Gmail channel
   GMAIL_CLIENT_ID: optional(z.string().min(1)),
   GMAIL_CLIENT_SECRET: optional(z.string().min(1)),
