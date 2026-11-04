@@ -4,6 +4,14 @@ import { useEffect, useRef, useState } from "react";
 
 type Msg = { from: "you" | "agent" | "system"; text: string };
 
+/** Fired by the landing page's "Try it" buttons: fills the chat in, never sends on its own. */
+export const PREFILL_EVENT = "support-chat:prefill";
+export interface PrefillDetail {
+  tenant: "harbor-pine" | "cadence-analytics";
+  text: string;
+  verify: { order: string; email: string } | null;
+}
+
 const TENANTS = [
   {
     slug: "harbor-pine",
@@ -31,6 +39,28 @@ export function ChatWidget() {
   // Bumped on tenant switch; responses from an older conversation are ignored.
   const conversationId = useRef(0);
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const tenantRef = useRef(tenant);
+  useEffect(() => {
+    tenantRef.current = tenant;
+  }, [tenant]);
+
+  useEffect(() => {
+    function onPrefill(e: Event) {
+      const d = (e as CustomEvent<PrefillDetail>).detail;
+      if (!TENANTS.some((t) => t.slug === d.tenant)) return;
+      if (d.tenant !== tenantRef.current) switchTenant(d.tenant);
+      setInput(d.text.slice(0, 2000));
+      if (d.verify) {
+        setOrder(d.verify.order);
+        setEmail(d.verify.email);
+        setShowVerify(true);
+      }
+      inputRef.current?.focus({ preventScroll: true });
+    }
+    window.addEventListener(PREFILL_EVENT, onPrefill);
+    return () => window.removeEventListener(PREFILL_EVENT, onPrefill);
+  }, []);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
@@ -213,6 +243,7 @@ export function ChatWidget() {
           </button>
         )}
         <input
+          ref={inputRef}
           aria-label="Message"
           value={input}
           onChange={(e) => setInput(e.target.value)}
