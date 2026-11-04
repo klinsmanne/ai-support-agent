@@ -121,13 +121,14 @@ describe("buildChain", () => {
     expect(chain.map((p) => `${p.id}:${p.model}`)).toEqual([
       "gemini:gemini-3.8-flash",
       "gemini:gemini-3.6-flash",
+      "groq:openai/gpt-oss-120b",
       "gemini:gemini-3.5-flash",
       "gemini:gemini-3.5-flash-lite",
-      "groq:openai/gpt-oss-120b",
+      "groq:openai/gpt-oss-20b",
     ]);
-    expect(buildChain({ LLM_PROVIDER: "gemini", GROQ_API_KEY: "q" }).map((p) => p.id)).toEqual([
-      "groq",
-    ]);
+    expect(
+      buildChain({ LLM_PROVIDER: "gemini", GROQ_API_KEY: "q" }).map((p) => `${p.id}:${p.model}`),
+    ).toEqual(["groq:openai/gpt-oss-120b", "groq:openai/gpt-oss-20b"]);
   });
 
   it("switches primary with one env var and keeps the Claude adapter inactive without a key", () => {
@@ -138,7 +139,7 @@ describe("buildChain", () => {
     });
     expect(claudeFirst[0].id).toBe("anthropic");
     const noKey = buildChain({ LLM_PROVIDER: "anthropic", GROQ_API_KEY: "q" });
-    expect(noKey.map((p) => p.id)).toEqual(["groq"]);
+    expect(noKey.map((p) => p.id)).toEqual(["groq", "groq"]); // no Anthropic adapter without a key
   });
 
   it("honors an explicit LLM_CHAIN and LLM_MODEL override", () => {
@@ -155,5 +156,76 @@ describe("buildChain", () => {
       GEMINI_API_KEY: "g",
     });
     expect(override[0].model).toBe("gemini-3.5-flash");
+  });
+});
+
+describe("daily free-tier quotas (live finding 2026-11-03)", () => {
+  it("classifies Gemini per-day vs per-minute quota violations", async () => {
+    const { geminiError } = await import("./gemini");
+    const daily = geminiError(429, {
+      error: {
+        message: "You exceeded your current quota",
+        details: [
+          { violations: [{ quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier" }] },
+          { retryDelay: "40s" },
+        ],
+      },
+    });
+    expect(daily[0]).toBe("quota_exhausted");
+    const perMinute = geminiError(429, {
+      error: {
+        message: "Quota exceeded",
+        details: [
+          { violations: [{ quotaId: "GenerateRequestsPerMinutePerProjectPerModel-FreeTier" }] },
+          { retryDelay: "12s" },
+        ],
+      },
+    });
+    expect(perMinute).toEqual(["rate_limit", expect.stringContaining("Please retry in 12s.")]);
+  });
+
+  it("classifies Groq daily limits", async () => {
+    const { classify429 } = await import("./types");
+    expect(
+      classify429("Rate limit reached for model openai/gpt-oss-120b on requests per day (RPD)"),
+    ).toBe("quota_exhausted");
+    expect(
+      classify429("Rate limit reached on tokens per minute (TPM). Please try again in 2.1s"),
+    ).toBe("rate_limit");
+  });
+
+  it("skips an exhausted model for an hour and never waits on it", async () => {
+    let now = 0;
+    const exhausted = fake("a", fail("quota_exhausted", "a"));
+    const backup = fake("b", () => ok("b"));
+    const waits: number[] = [];
+    const router = new ModelRouter(
+      [exhausted, backup],
+      () => now,
+      8_000,
+      async (ms) => void waits.push(ms),
+    );
+    await router.generate(req);
+    now += 30 * 60_000; // 30 minutes later: still skipped
+    await router.generate(req);
+    expect(exhausted.calls).toBe(1);
+    now += 31 * 60_000; // after an hour: probed again
+    await router.generate(req);
+    expect(exhausted.calls).toBe(2);
+    expect(waits).toEqual([]);
+  });
+
+  it("does not wait when a rate limit comes without a retry hint", async () => {
+    const a = fake("a", () => {
+      throw new LLMError("rate_limit", "Too many requests", "mock", "a");
+    });
+    const waits: number[] = [];
+    await expect(
+      new ModelRouter([a], Date.now, 8_000, async (ms) => void waits.push(ms)).generate({
+        ...req,
+        timeoutMs: 10_000,
+      }),
+    ).rejects.toThrow();
+    expect(waits).toEqual([]);
   });
 });

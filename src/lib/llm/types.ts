@@ -73,8 +73,12 @@ export interface LLMProvider {
   generate(req: GenerateRequest): Promise<GenerateResult>;
 }
 
+/**
+ * `rate_limit` = short-window limit (per minute) that clears soon; `quota_exhausted` = a daily
+ * free-tier quota is used up, so the model is useless for hours and must be skipped, not waited on.
+ */
 export type LLMErrorKind =
-  "rate_limit" | "unavailable" | "timeout" | "bad_request" | "auth" | "unknown";
+  "rate_limit" | "quota_exhausted" | "unavailable" | "timeout" | "bad_request" | "auth" | "unknown";
 
 /** Normalized provider error. `retryable` errors trigger fallback to the next model in the chain. */
 export class LLMError extends Error {
@@ -90,7 +94,12 @@ export class LLMError extends Error {
   }
 
   get retryable(): boolean {
-    return this.kind === "rate_limit" || this.kind === "unavailable" || this.kind === "timeout";
+    return (
+      this.kind === "rate_limit" ||
+      this.kind === "quota_exhausted" ||
+      this.kind === "unavailable" ||
+      this.kind === "timeout"
+    );
   }
 }
 
@@ -101,6 +110,15 @@ export function errorKindFromStatus(status: number): LLMErrorKind {
   if (status >= 500) return "unavailable";
   if (status >= 400) return "bad_request";
   return "unknown";
+}
+
+/**
+ * Classifies a 429 from its details. Gemini reports the violated quota (e.g.
+ * `GenerateRequestsPerDayPerProjectPerModel-FreeTier`) and a RetryInfo delay; Groq names the
+ * limit in the message ("requests per day (RPD)", "tokens per day (TPD)").
+ */
+export function classify429(text: string): "rate_limit" | "quota_exhausted" {
+  return /PerDay|per day|\(RPD\)|\(TPD\)|daily/i.test(text) ? "quota_exhausted" : "rate_limit";
 }
 
 /** fetch with a hard timeout that surfaces as LLMError("timeout"). */

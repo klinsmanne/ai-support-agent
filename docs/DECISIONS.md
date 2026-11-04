@@ -79,3 +79,19 @@ Architecture decision records (ADRs) — short, with context and trade-offs. New
 ## ADR-014: Operational lesson — verify the live state, never trust filtered output
 
 - A migration silently failed (Supabase forbids `set hnsw.iterative_scan` on functions) and the whole transaction rolled back; an output filter hid the error and a weaker check looked green. Now every `db push` is followed by a read-only query asserting the expected objects exist (grants, functions, constraints, RLS).
+
+## ADR-015: Daily free-tier quotas are a different failure from rate limits
+
+- **Observation (live chat test, 2026-11-03):** after a day of testing, Gemini returned 429 "exceeded your current quota" (daily). The router treated it like a per-minute limit — waited 8 s, retried — and the 45 s budget ran out before Groq (with spare capacity) was tried. The ticket escalated with a holding reply. The trace in `trace_events` showed exactly why.
+- **Decision:** classify 429s from provider details (Gemini `QuotaFailure.quotaId` …`PerDay`…, Groq "requests per day (RPD)") as `quota_exhausted` → skip that model for 1 hour, never wait. Wait only when every provider gave an explicit retry hint. Interleave providers in the chain (Gemini 3.8 → 3.6 → Groq 120b → Gemini 3.5 → 3.5-lite → Groq 20b); classification starts on Groq 20b (0.7 s vs up to 50 s for Flash-Lite).
+- **Why it matters:** on free tiers, capacity is a portfolio of small per-model quotas; resilience = spending them in the right order, and observability is what made the diagnosis a 2-minute query.
+
+## ADR-016: Email trust = DMARC-aligned authentication, read only from our own receiving server
+
+- **Context (security review, milestone E):** `spf=pass && dkim=pass` only proves the _sending_ domain — an attacker's own domain passes both while forging `From: customer@…`. Also, every `Authentication-Results` header was parsed, so an attacker could add their own "dmarc=pass".
+- **Decision:** trust only the topmost header stamped by `mx.google.com`; a sender is authenticated if DMARC passes or SPF/DKIM pass for a domain aligned with From (RFC 7489 relaxed). Unauthenticated senders never receive mail from us (no backscatter); their drafts wait for a human (`unauthenticated_sender`).
+
+## ADR-017: At-most-once processing; humans keep the tickets they own
+
+- **Decision:** a provider message is processed at most once — failures (or runs stuck in `processing` > 10 min, swept each poll) become `needs_attention` instead of being re-run, because a re-run could email the customer twice. Follow-ups on `escalated`/`needs_attention` tickets are attached without running the AI. Email tickets are keyed by Gmail thread **and sender**, so a stranger replying into a thread never sees another customer's history.
+- **Poller:** fetched ids go into a persisted queue and the history cursor advances immediately, so a backlog larger than one cycle drains instead of stalling.
