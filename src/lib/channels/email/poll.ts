@@ -1,4 +1,5 @@
 import { ingestMessage, type IngestResult, type PipelineDeps } from "../../pipeline/ingest.ts";
+import { reportFailure } from "../../pipeline/alerts.ts";
 import { GmailError, type GmailClient } from "./gmail-client.ts";
 import { parseGmailMessage } from "./parse.ts";
 
@@ -29,6 +30,9 @@ export async function pollGmail(
   cursorTenantId: string,
 ): Promise<PollReport> {
   const swept = await deps.store.sweepStale(10).catch(() => 0);
+  if (swept > 0) {
+    await reportFailure(deps.store, deps.alert, "stale_runs", `${swept} run(s) stuck > 10 min`);
+  }
   const state = await deps.store.channelState(cursorTenantId, "email");
   let cursor = (state.historyId as string | undefined) ?? null;
   const pending: Pending[] = Array.isArray(state.pending) ? (state.pending as Pending[]) : [];
@@ -51,6 +55,7 @@ export async function pollGmail(
       fresh = (await gmail.recentInboxIds()).reverse();
       cursor = profile.historyId;
     } else {
+      await reportFailure(deps.store, deps.alert, "gmail_poll", (error as Error).message);
       return {
         fetched: 0,
         pending: pending.length,
@@ -101,6 +106,7 @@ export async function pollGmail(
             reason: (error as Error).message.slice(0, 200),
           })
           .catch(() => {});
+        await reportFailure(deps.store, deps.alert, "gmail_fetch", (error as Error).message);
       }
     }
   }

@@ -47,9 +47,12 @@ export default function Privacy() {
         <ul>
           <li>Google (Gmail API) to receive and send support email.</li>
           <li>
-            Google (Gemini API) and Groq to generate replies. This demo uses free tiers; Google may
-            use free-tier prompts to improve its products, which is another reason to send only
-            fictional details.
+            <strong>Email</strong> is answered only by AI providers whose terms forbid training on
+            what we send (currently Groq; Anthropic if enabled).
+          </li>
+          <li>
+            <strong>Chat</strong> may also use Google&apos;s Gemini API free tier, where Google may
+            use prompts to improve its products. Another reason to type only fictional details.
           </li>
           <li>Supabase (database, in the United States) and Vercel (hosting).</li>
         </ul>
@@ -58,17 +61,22 @@ export default function Privacy() {
         <h2>Google user data</h2>
         <p>
           The Gmail connection is used only for the support inbox this app operates: to read
-          incoming support email and send replies. To write a reply, the text of your email is sent
-          to the AI providers listed above, including Gemini&apos;s free tier. Gmail data is not
-          sold, not used for advertising, and not shared with anyone else.
+          incoming support email and send replies. Email content is shared only with the processors
+          needed to answer it, and only with AI providers that are contractually barred from
+          training on it. It is never sold, used for advertising, or used to train AI models. This
+          app&apos;s use of information received from Google APIs adheres to the Google API Services
+          User Data Policy, including the Limited Use requirements.
         </p>
       </section>
       <section>
         <h2>Retention and deletion</h2>
         <p>
-          Messages are kept for up to 90 days so the team can review them. Personal data is masked
-          in internal logs. To have your messages deleted, email {contact} and we&apos;ll remove
-          them.
+          Once a conversation is finished, its messages and AI traces are deleted automatically
+          after the client&apos;s retention period (90 days by default). Conversations still waiting
+          for a person are kept until someone handles them. Refund records (amount, order, reason
+          category) and an audit log of actions taken (kept up to a year, no message text) remain
+          for accounting and security. Personal data is masked in internal logs. To have your
+          messages deleted sooner, email {contact} and we&apos;ll remove them.
         </p>
       </section>
       <section>

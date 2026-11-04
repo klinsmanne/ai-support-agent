@@ -4,7 +4,7 @@ import { createServiceClient } from "../db/client.ts";
 import { SupabaseRepo } from "../db/supabase-repo.ts";
 import { parseServerEnv, type ServerEnv } from "../env.ts";
 import { embedTexts } from "../llm/embeddings.ts";
-import { createClassifierRouter, createRouter } from "../llm/index.ts";
+import { buildChain, createClassifierRouter, createRouter } from "../llm/index.ts";
 import type { PipelineDeps } from "../pipeline/ingest.ts";
 import { SupabaseStore } from "../pipeline/supabase-store.ts";
 import { SupabaseChatStore, type ChatStore } from "../channels/chat/store.ts";
@@ -55,6 +55,19 @@ export function buildContainer(source: Record<string, string | undefined>): Cont
       ? `https://${source.VERCEL_PROJECT_PRODUCTION_URL}`
       : null);
 
+  const llmEmail = { noTraining: true };
+  if (!buildChain(env, llmEmail).length) {
+    // Email still fails closed (tickets go to needs_attention), but say why at startup.
+    console.error(
+      "No no-training LLM provider configured (GROQ_API_KEY): email can't be answered by AI.",
+    );
+  }
+  if (env.GEMINI_PAID_TIER === "true") {
+    console.warn(
+      "GEMINI_PAID_TIER=true: Gemini is used for email. Only set this on a billing-enabled project.",
+    );
+  }
+
   return {
     env,
     store,
@@ -66,7 +79,19 @@ export function buildContainer(source: Record<string, string | undefined>): Cont
       repo,
       router: createRouter(env),
       classifierRouter: createClassifierRouter(env),
+      email: {
+        router: createRouter(env, llmEmail),
+        classifierRouter: createClassifierRouter(env, llmEmail),
+        // Keyword-only retrieval: the free embedding API is a training-allowed Google service.
+        repo: env.GEMINI_PAID_TIER === "true" ? repo : new SupabaseRepo(db, null),
+      },
       sender: gmail,
+      alert:
+        gmail && env.ALERT_EMAIL
+          ? async (subject, body) => {
+              await gmail.sendNew(env.ALERT_EMAIL!, subject, body);
+            }
+          : null,
       inboxAddress: inbox,
       defaultTenantSlug: DEFAULT_TENANT_SLUG,
       csatUrl: appUrl ? (ticketId: string) => `${appUrl}/csat/${ticketId}` : undefined,

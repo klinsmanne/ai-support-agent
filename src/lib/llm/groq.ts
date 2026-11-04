@@ -15,6 +15,7 @@ const URL = "https://api.groq.com/openai/v1/chat/completions";
 /** Groq adapter (OpenAI-compatible chat completions) — free-tier fallback provider. */
 export class GroqProvider implements LLMProvider {
   readonly id = "groq" as const;
+  readonly trainsOnInputs = false; // GroqCloud Services Agreement §4.2
 
   constructor(
     readonly model: string,

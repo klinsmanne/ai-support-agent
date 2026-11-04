@@ -22,6 +22,10 @@
         "other"
       ]
     },
+    "demo": {
+      "default": false,
+      "type": "boolean"
+    },
     "settings": {
       "type": "object",
       "properties": {

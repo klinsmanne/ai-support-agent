@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
+import { useTurnstile } from "./useTurnstile";
 
 type Msg = { from: "you" | "agent" | "system"; text: string };
 
@@ -28,7 +29,8 @@ const TENANTS = [
 ] as const;
 
 /** Embeddable support chat. Talks only to our own /api/chat (same-origin), never to model APIs. */
-export function ChatWidget() {
+export function ChatWidget({ turnstileSiteKey }: { turnstileSiteKey?: string } = {}) {
+  const turnstile = useTurnstile(turnstileSiteKey);
   const [tenant, setTenant] = useState<(typeof TENANTS)[number]["slug"]>("harbor-pine");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -94,11 +96,25 @@ export function ChatWidget() {
     const stale = () => myConversation !== conversationId.current;
     setBusy(true);
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tenant, sessionToken: token.current, ...body }),
-      });
+      // The bot check is only needed to start a session; resumed sessions skip it.
+      const request = async () =>
+        fetch("/api/chat", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            tenant,
+            sessionToken: token.current,
+            turnstileToken: token.current ? undefined : await turnstile.take(),
+            ...body,
+          }),
+        });
+      let res = await request();
+      // A stored session the server no longer has (expired after 7 idle days) needs a fresh bot
+      // check: drop it and start a new session once.
+      if (res.status === 403 && token.current && !stale()) {
+        token.current = undefined;
+        res = await request();
+      }
       const json = await res.json();
       if (stale()) return null;
       if (!res.ok) {
@@ -273,6 +289,7 @@ export function ChatWidget() {
           Send
         </button>
       </form>
+      <div ref={turnstile.container} className="px-4 empty:hidden" />
       <p className="px-4 pb-2 text-[10px] text-zinc-500">
         AI assistant · fictional demo data only · don&apos;t share real personal information
       </p>

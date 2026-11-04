@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { chunkMarkdown } from "../rag/chunk";
 import { TenantConfigSchema } from "./config";
-import { lit, stableUuid } from "./seed-sql";
+import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { buildTenantSeedSql, lit, stableUuid } from "./seed-sql";
 
 describe("lit (SQL literal rendering)", () => {
   it("escapes single quotes so config text can't break out of the literal", () => {
@@ -116,5 +118,30 @@ describe("TenantConfigSchema", () => {
       placed_days_ago: 1,
     };
     expect(TenantConfigSchema.safeParse({ ...base, orders: [order] }).success).toBe(false);
+  });
+});
+
+describe("buildTenantSeedSql: demo vs real tenants", () => {
+  const raw = JSON.parse(
+    readFileSync(join(process.cwd(), "tenants", "harbor-pine", "tenant.json"), "utf8"),
+  );
+  it("a demo tenant gets a reset, guarded by is_demo in SQL", () => {
+    const sql = buildTenantSeedSql(TenantConfigSchema.parse(raw), []);
+    expect(sql.reset).toMatch(/and is_demo\) then/);
+    expect(sql.reset).toContain("delete from public.refunds");
+  });
+  it("a real client never gets refunds, orders or customers deleted or overwritten", () => {
+    const real = TenantConfigSchema.parse({ ...raw, demo: false });
+    const sql = buildTenantSeedSql(real, []);
+    const all = `${sql.setup}\n${sql.reset}\n${sql.cleanup}`;
+    expect(sql.reset).toBe("");
+    expect(all).not.toMatch(/delete from public\.(refunds|orders|payments|customers)/);
+    expect(sql.setup).toMatch(/insert into public\.orders[\s\S]*on conflict \(id\) do nothing;/);
+    expect(sql.setup).not.toMatch(/insert into public\.orders[^;]*do update/);
+  });
+  it("defaults to not-demo when the flag is missing", () => {
+    const rest = { ...raw };
+    delete rest.demo;
+    expect(TenantConfigSchema.parse(rest).demo).toBe(false);
   });
 });

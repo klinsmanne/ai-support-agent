@@ -179,7 +179,7 @@ export default function Home() {
               )}
             </div>
             <div id="chat" className="scroll-mt-4 lg:sticky lg:top-6 lg:self-start">
-              <ChatWidget />
+              <ChatWidget turnstileSiteKey={process.env.TURNSTILE_SITE_KEY} />
             </div>
           </div>
         </section>

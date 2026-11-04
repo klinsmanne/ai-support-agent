@@ -17,6 +17,7 @@ const serverEnvSchema = z.object({
   LLM_MODEL: optional(z.string()),
   LLM_CHAIN: optional(z.string()),
   GEMINI_API_KEY: optional(z.string().min(1)),
+  GEMINI_PAID_TIER: optional(z.enum(["true", "false"])),
   GROQ_API_KEY: optional(z.string().min(1)),
   ANTHROPIC_API_KEY: optional(z.string().min(1)),
   // Supabase (new-style keys: publishable is browser-safe; secret bypasses RLS — server only)

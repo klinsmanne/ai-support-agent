@@ -4,6 +4,7 @@ import { baseAddress, emailSkipReason, plusTag } from "../channels/email/filters
 import type { ChannelSender, InboundMessage } from "../channels/types.ts";
 import type { ModelRouter } from "../llm/router.ts";
 import { maskPII } from "../guardrails/pii.ts";
+import { reportFailure, type AlertSend } from "./alerts.ts";
 import type { PipelineStore, TicketRef } from "./store.ts";
 
 /**
@@ -19,7 +20,19 @@ export interface PipelineDeps {
   repo: AgentRepo;
   router: Pick<ModelRouter, "generate">;
   classifierRouter?: Pick<ModelRouter, "generate">;
+  /**
+   * Agent dependencies for email: routers limited to providers that don't train on inputs and
+   * a repo without third-party query embeddings (Gmail data, Google API Limited Use policy).
+   * Falls back to the defaults when not provided (tests, scripts).
+   */
+  email?: {
+    router: Pick<ModelRouter, "generate">;
+    classifierRouter?: Pick<ModelRouter, "generate">;
+    repo: AgentRepo;
+  };
   sender: ChannelSender | null;
+  /** Emails the operator about repeated failures (see alerts.ts); null = alerts off. */
+  alert?: AlertSend | null;
   inboxAddress: string;
   defaultTenantSlug: string;
   /** Builds the public CSAT link for a ticket (optional). */
@@ -226,7 +239,9 @@ export async function ingestMessage(
         supportEmail: deps.inboxAddress,
         csatUrl: deps.csatUrl?.(ticket.id),
       },
-      { router: deps.router, classifierRouter: deps.classifierRouter, repo: deps.repo },
+      msg.channel === "email" && deps.email
+        ? deps.email
+        : { router: deps.router, classifierRouter: deps.classifierRouter, repo: deps.repo },
     );
     const runId = await store.saveRun(tenantId, ticket.id, inboundId, result);
     await recordUsage(deps, result);
@@ -387,6 +402,7 @@ export async function ingestMessage(
     await store
       .finishMessage(msg.channel, msg.providerMessageId, "failed", ticketId, maskPII(message))
       .catch(() => {});
+    await reportFailure(store, deps.alert, `pipeline_${msg.channel}`, message);
     return { status: "failed", ticketId, error: message };
   }
 }

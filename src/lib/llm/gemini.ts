@@ -31,6 +31,8 @@ export class GeminiProvider implements LLMProvider {
   constructor(
     readonly model: string,
     private readonly apiKey: string,
+    /** Free tier ("Unpaid Services"): Google may use prompts to improve products. */
+    readonly trainsOnInputs = true,
   ) {}
 
   async generate(req: GenerateRequest): Promise<GenerateResult> {
