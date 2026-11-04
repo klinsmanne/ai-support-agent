@@ -94,7 +94,8 @@ export type EscalationReason =
   | "legal_or_safety"
   | "reply_validation_failed"
   | "agent_error"
-  | "reply_cap_reached";
+  | "reply_cap_reached"
+  | "kill_switch_active";
 
 /** Escalation triggers that are decided in code from the classification, before any tool runs. */
 export function preflightEscalation(input: {

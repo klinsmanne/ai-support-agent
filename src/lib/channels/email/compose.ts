@@ -8,12 +8,16 @@ import type { OutboundReply } from "../types.ts";
 export function composeReplyMime(
   reply: OutboundReply,
   from: { email: string; name: string },
+  opts: { isReply?: boolean } = {},
 ): string {
-  const subject = reply.subject
-    ? /^re:/i.test(reply.subject)
-      ? reply.subject
-      : `Re: ${reply.subject}`
-    : "Re: your request";
+  const isReply = opts.isReply ?? true;
+  const subject = !isReply
+    ? (reply.subject ?? "")
+    : reply.subject
+      ? /^re:/i.test(reply.subject)
+        ? reply.subject
+        : `Re: ${reply.subject}`
+      : "Re: your request";
   const headers = [
     `From: ${encodeHeader(from.name)} <${from.email}>`,
     `To: ${reply.to}`,
