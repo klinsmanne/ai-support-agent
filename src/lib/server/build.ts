@@ -66,7 +66,19 @@ export function buildContainer(source: Record<string, string | undefined>): Cont
       repo,
       router: createRouter(env),
       classifierRouter: createClassifierRouter(env),
+      email: {
+        router: createRouter(env, { noTraining: true }),
+        classifierRouter: createClassifierRouter(env, { noTraining: true }),
+        // Keyword-only retrieval: the free embedding API is a training-allowed Google service.
+        repo: env.GEMINI_PAID_TIER === "true" ? repo : new SupabaseRepo(db, null),
+      },
       sender: gmail,
+      alert:
+        gmail && env.ALERT_EMAIL
+          ? async (subject, body) => {
+              await gmail.sendNew(env.ALERT_EMAIL!, subject, body);
+            }
+          : null,
       inboxAddress: inbox,
       defaultTenantSlug: DEFAULT_TENANT_SLUG,
       csatUrl: appUrl ? (ticketId: string) => `${appUrl}/csat/${ticketId}` : undefined,

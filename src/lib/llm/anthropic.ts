@@ -16,6 +16,7 @@ import {
  */
 export class AnthropicProvider implements LLMProvider {
   readonly id = "anthropic" as const;
+  readonly trainsOnInputs = false; // Anthropic Commercial Terms §B
   private readonly client: Anthropic;
 
   constructor(

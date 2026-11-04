@@ -18,10 +18,18 @@ export interface LLMConfig {
   GEMINI_API_KEY?: string;
   GROQ_API_KEY?: string;
   ANTHROPIC_API_KEY?: string;
+  /** "true" when the Gemini key is on a paid (billing-enabled) project: no training on prompts. */
+  GEMINI_PAID_TIER?: string;
+}
+
+export interface ChainOptions {
+  /** Only providers whose terms forbid training on request content (used for email). */
+  noTraining?: boolean;
 }
 
 function makeProvider(id: string, model: string, cfg: LLMConfig): LLMProvider | null {
-  if (id === "gemini" && cfg.GEMINI_API_KEY) return new GeminiProvider(model, cfg.GEMINI_API_KEY);
+  if (id === "gemini" && cfg.GEMINI_API_KEY)
+    return new GeminiProvider(model, cfg.GEMINI_API_KEY, cfg.GEMINI_PAID_TIER !== "true");
   if (id === "groq" && cfg.GROQ_API_KEY) return new GroqProvider(model, cfg.GROQ_API_KEY);
   if (id === "anthropic" && cfg.ANTHROPIC_API_KEY)
     return new AnthropicProvider(model, cfg.ANTHROPIC_API_KEY);
@@ -32,7 +40,7 @@ function makeProvider(id: string, model: string, cfg: LLMConfig): LLMProvider | 
  * Builds the fallback chain from configuration. Switching the primary model is one env var
  * (LLM_PROVIDER / LLM_MODEL); Groq is always appended as the cross-provider fallback.
  */
-export function buildChain(cfg: LLMConfig): LLMProvider[] {
+export function buildChain(cfg: LLMConfig, opts: ChainOptions = {}): LLMProvider[] {
   const specs: [string, string][] = cfg.LLM_CHAIN
     ? cfg.LLM_CHAIN.split(",").map((s) => {
         const [id, ...rest] = s.trim().split(":");
@@ -67,14 +75,15 @@ export function buildChain(cfg: LLMConfig): LLMProvider[] {
       return true;
     })
     .map(([id, model]) => makeProvider(id, model, cfg))
-    .filter((p): p is LLMProvider => p !== null);
+    .filter((p): p is LLMProvider => p !== null)
+    .filter((p) => !opts.noTraining || p.trainsOnInputs === false);
 }
 
 /** Max time a request waits when every model is rate-limited before giving up (free tiers). */
 const RATE_LIMIT_WAIT_MS = 8_000;
 
-export function createRouter(cfg: LLMConfig): ModelRouter {
-  return new ModelRouter(buildChain(cfg), Date.now, RATE_LIMIT_WAIT_MS);
+export function createRouter(cfg: LLMConfig, opts: ChainOptions = {}): ModelRouter {
+  return new ModelRouter(buildChain(cfg, opts), Date.now, RATE_LIMIT_WAIT_MS);
 }
 
 /**
@@ -82,16 +91,23 @@ export function createRouter(cfg: LLMConfig): ModelRouter {
  * gpt-oss-20b, ~0.7 s in live probes vs up to 50 s for Flash-Lite) and a different Groq model than the agent. Free-tier quotas are per model, so splitting the two call
  * types across models roughly doubles throughput before anything is rate-limited.
  */
-export function createClassifierRouter(cfg: LLMConfig): ModelRouter {
-  const chain = buildChain({
-    ...cfg,
-    LLM_CHAIN:
-      cfg.LLM_CHAIN ??
-      (cfg.LLM_PROVIDER === "anthropic"
-        ? "anthropic:claude-haiku-5-5,gemini:gemini-3.5-flash-lite,groq:openai/gpt-oss-20b"
-        : "groq:openai/gpt-oss-20b,gemini:gemini-3.5-flash-lite,gemini:gemini-3.6-flash,gemini:gemini-3.1-flash-lite"),
-  });
-  return new ModelRouter(chain.length ? chain : buildChain(cfg), Date.now, RATE_LIMIT_WAIT_MS);
+export function createClassifierRouter(cfg: LLMConfig, opts: ChainOptions = {}): ModelRouter {
+  const chain = buildChain(
+    {
+      ...cfg,
+      LLM_CHAIN:
+        cfg.LLM_CHAIN ??
+        (cfg.LLM_PROVIDER === "anthropic"
+          ? "anthropic:claude-haiku-5-5,gemini:gemini-3.5-flash-lite,groq:openai/gpt-oss-20b"
+          : "groq:openai/gpt-oss-20b,gemini:gemini-3.5-flash-lite,gemini:gemini-3.6-flash,gemini:gemini-3.1-flash-lite"),
+    },
+    opts,
+  );
+  return new ModelRouter(
+    chain.length ? chain : buildChain(cfg, opts),
+    Date.now,
+    RATE_LIMIT_WAIT_MS,
+  );
 }
 
 export * from "./types.ts";

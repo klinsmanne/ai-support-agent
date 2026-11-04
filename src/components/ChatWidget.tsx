@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
+import { useTurnstile } from "./useTurnstile";
 
 type Msg = { from: "you" | "agent" | "system"; text: string };
 
@@ -28,7 +29,8 @@ const TENANTS = [
 ] as const;
 
 /** Embeddable support chat. Talks only to our own /api/chat (same-origin), never to model APIs. */
-export function ChatWidget() {
+export function ChatWidget({ turnstileSiteKey }: { turnstileSiteKey?: string } = {}) {
+  const turnstile = useTurnstile(turnstileSiteKey);
   const [tenant, setTenant] = useState<(typeof TENANTS)[number]["slug"]>("harbor-pine");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -94,10 +96,12 @@ export function ChatWidget() {
     const stale = () => myConversation !== conversationId.current;
     setBusy(true);
     try {
+      // The bot check is only needed to start a session; resumed sessions skip it.
+      const turnstileToken = token.current ? undefined : await turnstile.take();
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tenant, sessionToken: token.current, ...body }),
+        body: JSON.stringify({ tenant, sessionToken: token.current, turnstileToken, ...body }),
       });
       const json = await res.json();
       if (stale()) return null;
@@ -273,6 +277,7 @@ export function ChatWidget() {
           Send
         </button>
       </form>
+      <div ref={turnstile.container} className="px-4 empty:hidden" />
       <p className="px-4 pb-2 text-[10px] text-zinc-500">
         AI assistant · fictional demo data only · don&apos;t share real personal information
       </p>

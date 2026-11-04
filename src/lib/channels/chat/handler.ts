@@ -80,7 +80,10 @@ export async function handleChat(
   let session = sessionId ? await deps.chat.getSession(tenantId, sessionId) : null;
   if (!session) {
     if (deps.verifyTurnstile && !(await deps.verifyTurnstile(req.turnstileToken, ip))) {
-      return { error: "bot check failed", status: 403 };
+      return {
+        error: "We couldn't confirm you're a person. Please refresh the page and try again.",
+        status: 403,
+      };
     }
     sessionId = randomUUID();
     session = await deps.chat.createSession(tenantId, sessionId, ipHash);

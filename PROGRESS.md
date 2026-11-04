@@ -13,16 +13,14 @@ _Last updated: 2026-11-04_
 
 - **Milestone D — Agent (PR #9, merged).**
 - **Milestone E — Channels (PR #10, merged):** Gmail + chat pipeline, DMARC-aligned sender auth, at-most-once processing.
+- **Milestone G — Landing page (PR #12, merged).**
 - **Milestone F — Dashboard (PR #11, merged):** invite-only sign-in, read-only public demo (viewer privacy in RLS), trace view, approvals that execute the pending action first, settings + kill switch, KPI metrics.
 - **Gmail:** support inbox `integralplantsupport@gmail.com` connected (OAuth app in Testing mode; refresh token in Keychain — expires after 7 days until the app is published, which needs a live homepage + privacy URL).
 
 ## In progress (resume here)
 
-- **Milestone G — Landing page (PR #12):** problem → how it works (architecture, resolve vs escalate) → try it (scenario buttons prefill the chat; demo-email buttons for both tenants) → live aggregate numbers (demo tenants only, cached per minute) → privacy note; `/privacy` and `/terms` for the Gmail OAuth app. Security + quality review findings fixed. 235 tests. → merge after CI.
-- Then **Milestone H — Hardening + THREAT_MODEL.** Must-dos carried from the G review:
-  - **Retention purge** (`purge_expired()` deleting tickets/messages/traces older than `tenants.retention_days`, scheduled with pg_cron) — the privacy page promises "up to 90 days"; ship before the site goes public in J.
-  - **Email content only to no-training providers** (Groq), then restore a Google API "Limited Use" statement on `/privacy`.
-  - Schedule `prune_rate_limits()`; nonce-based CSP `script-src`; daily demo-data reset (shared demo refunds/address changes wear out); eval that "this is ridiculous" + duplicate charge still refunds.
+- **Milestone H — Hardening (PR #13):** data lifecycle (retention purge, daily demo reset, rate-limit pruning via pg_cron; ADR-019), email content only to no-training providers (ADR-020), Turnstile on chat (fails closed in production) + stricter CSP (ADR-021), repeated-failure email alerts, `docs/THREAT_MODEL.md` (STRIDE + OWASP LLM Top 10). Pending: apply migration 9 + seed live (needs owner OK — enables automatic deletion), real Cloudflare Turnstile keys (currently Cloudflare's test keys locally), reviews, merge.
+- Then **Milestone I — Evals + model comparison.**
 
 ## Previously in progress
 
@@ -49,4 +47,4 @@ Paste this into a new Claude Code session opened in this folder:
 
 ## Decisions
 
-See `docs/DECISIONS.md` (ADR-001 … ADR-018).
+See `docs/DECISIONS.md` (ADR-001 … ADR-021).

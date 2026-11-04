@@ -36,7 +36,21 @@ export interface KbDoc {
 }
 
 /** Builds idempotent seed SQL (upserts) for one tenant: settings, customers, orders, payments, KB. */
-export function buildTenantSeedSql(cfg: TenantConfig, kbDocs: KbDoc[]): string {
+/**
+ * Seed SQL for one tenant, in three parts:
+ *  - setup: tenant, settings, customers, KB (run once per seed)
+ *  - reset: orders, payments, and removal of refunds — the demo's mutable state. build-seed wraps
+ *    every tenant's reset in public.reset_demo_data(), which the seed calls and pg_cron re-runs
+ *    daily, so the shared public demo's sample refunds and address changes keep working.
+ *  - cleanup: rows removed from the config (customers last: orders reference them)
+ */
+export interface TenantSeedSql {
+  setup: string;
+  reset: string;
+  cleanup: string;
+}
+
+export function buildTenantSeedSql(cfg: TenantConfig, kbDocs: KbDoc[]): TenantSeedSql {
   const tenantId = stableUuid("tenant", cfg.slug);
   const s = cfg.settings;
   // Only the regex-validated slug goes into the SQL comment; free text could contain a newline.
@@ -58,6 +72,12 @@ values (${lit(tenantId)}, ${lit(s.rollout_mode)}, ${lit(s.refund_auto_approve_li
 on conflict (tenant_id) do nothing; -- settings changed in the dashboard are never overwritten by re-seeding`,
   );
 
+  const reset: string[] = [
+    `-- Tenant: ${cfg.slug}`,
+    // Refunds are demo activity (visitors trying the scenarios); seeded orders start un-refunded.
+    `delete from public.refunds where tenant_id = ${lit(tenantId)};`,
+  ];
+  const cleanup: string[] = [];
   const customerIds = new Map<string, string>();
   for (const c of cfg.customers) {
     const id = stableUuid("customer", cfg.slug, c.key);
@@ -72,7 +92,7 @@ on conflict (tenant_id) do nothing; -- settings changed in the dashboard are nev
     const orderId = stableUuid("order", cfg.slug, o.order_number);
     const customerId = customerIds.get(o.customer)!;
     // Demo data is reset to its scripted state on every seed so the sample scenarios keep working.
-    out.push(
+    reset.push(
       `insert into public.orders (id, tenant_id, customer_id, order_number, status, currency, total_cents, items, shipping_address,
   carrier, tracking_number, estimated_delivery, placed_at, shipped_at, delivered_at)
 values (${lit(orderId)}, ${lit(tenantId)}, ${lit(customerId)}, ${lit(o.order_number)}, ${lit(o.status)}, ${lit(o.currency)}, ${lit(o.total_cents)},
@@ -88,13 +108,13 @@ on conflict (id) do update set customer_id = excluded.customer_id, status = excl
     for (let i = 0; i < charges; i++) {
       const paymentId = stableUuid("payment", cfg.slug, o.order_number, String(i));
       paymentIds.push(paymentId);
-      out.push(
+      reset.push(
         `insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values (${lit(paymentId)}, ${lit(tenantId)}, ${lit(orderId)}, ${lit(customerId)}, ${lit(o.total_cents)}, 'captured', ${daysAgo(o.placed_days_ago)})
 on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;`,
       );
     }
-    out.push(
+    reset.push(
       `delete from public.payments where tenant_id = ${lit(tenantId)} and order_id = ${lit(orderId)} and id <> all(${uuidArray(paymentIds)});`,
     );
   }
@@ -123,15 +143,15 @@ on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'c
   // (orders cascade to payments; KB documents cascade to chunks).
   const orderIds = cfg.orders.map((o) => stableUuid("order", cfg.slug, o.order_number));
   const docIds = kbDocs.map((d) => stableUuid("kb", cfg.slug, d.slug));
-  out.push(
+  reset.push(
     `delete from public.orders where tenant_id = ${lit(tenantId)} and id <> all(${uuidArray(orderIds)});`,
   );
-  out.push(
+  cleanup.push(
     `delete from public.customers where tenant_id = ${lit(tenantId)} and id <> all(${uuidArray([...customerIds.values()])});`,
   );
   out.push(
     `delete from public.kb_documents where tenant_id = ${lit(tenantId)} and id <> all(${uuidArray(docIds)});`,
   );
 
-  return out.join("\n\n");
+  return { setup: out.join("\n\n"), reset: reset.join("\n\n"), cleanup: cleanup.join("\n\n") };
 }

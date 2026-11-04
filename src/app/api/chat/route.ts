@@ -26,15 +26,20 @@ function sameOrigin(request: Request): boolean {
 
 async function verifyTurnstile(token: string | undefined, ip: string): Promise<boolean> {
   const secret = process.env.TURNSTILE_SECRET_KEY;
-  if (!secret) return true; // bot protection disabled until Turnstile keys are configured
+  // Fail closed in production: a missing key must not silently switch bot protection off.
+  if (!secret) return process.env.NODE_ENV !== "production";
   if (!token) return false;
-  const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-    method: "POST",
-    body: new URLSearchParams({ secret, response: token, remoteip: ip }),
-    signal: AbortSignal.timeout(5_000),
-  });
-  const json = (await res.json().catch(() => ({}))) as { success?: boolean };
-  return json.success === true;
+  try {
+    const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      body: new URLSearchParams({ secret, response: token, remoteip: ip }),
+      signal: AbortSignal.timeout(5_000),
+    });
+    const json = (await res.json().catch(() => ({}))) as { success?: boolean };
+    return json.success === true;
+  } catch {
+    return false; // Cloudflare unreachable: refuse new sessions rather than open the gate
+  }
 }
 
 export async function POST(request: Request) {

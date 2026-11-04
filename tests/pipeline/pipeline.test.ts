@@ -122,6 +122,23 @@ describe("email pipeline", () => {
     expect(store.tickets[0].first_response_at).toBeTruthy();
   });
 
+  it("email uses the no-training model set when one is configured (Gmail Limited Use)", async () => {
+    const general = router([[call("send_reply", { message: "general" })]]);
+    const privateR = router([
+      [call("get_orders", { order_number: "1042" })],
+      [call("send_reply", { message: "It's delayed, new ETA Friday." })],
+    ]);
+    let generalCalls = 0;
+    const counting = {
+      generate: (req: GenerateRequest) => (generalCalls++, general.generate(req)),
+    };
+    const d = { ...deps(counting as ReturnType<typeof router>), email: { router: privateR, repo } };
+    const res = await ingestMessage(email(), d);
+    expect(res).toMatchObject({ status: "processed", delivered: "sent" });
+    expect(generalCalls).toBe(0);
+    expect(sent[0].body).toMatch(/new ETA Friday/);
+  });
+
   it("never processes the same Gmail message twice", async () => {
     const r = router([[call("send_reply", { message: "Hi" })]]);
     const m = email();

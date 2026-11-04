@@ -70,6 +70,13 @@ export interface GenerateResult {
 export interface LLMProvider {
   readonly id: ProviderId;
   readonly model: string;
+  /**
+   * Whether the provider's terms let it use request content to improve its models. Gemini's
+   * free tier does; Groq's services agreement and Anthropic's commercial terms forbid it.
+   * Email content (Gmail user data, Google's Limited Use policy) only goes to providers where
+   * this is explicitly false. Undefined = unknown = treated as "may train".
+   */
+  readonly trainsOnInputs?: boolean;
   generate(req: GenerateRequest): Promise<GenerateResult>;
 }
 

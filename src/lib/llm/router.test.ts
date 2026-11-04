@@ -131,6 +131,18 @@ describe("buildChain", () => {
     ).toEqual(["groq:openai/gpt-oss-120b", "groq:openai/gpt-oss-20b"]);
   });
 
+  it("noTraining keeps only providers whose terms forbid training on inputs", () => {
+    const cfg = { LLM_PROVIDER: "gemini" as const, GEMINI_API_KEY: "g", GROQ_API_KEY: "q" };
+    expect(buildChain(cfg, { noTraining: true }).map((p) => p.id)).toEqual(["groq", "groq"]);
+    // A billing-enabled Gemini project is allowed (paid terms: no training on prompts).
+    expect(
+      buildChain({ ...cfg, GEMINI_PAID_TIER: "true" }, { noTraining: true }).some(
+        (p) => p.id === "gemini",
+      ),
+    ).toBe(true);
+    expect(buildChain({ ...cfg, GROQ_API_KEY: undefined }, { noTraining: true })).toEqual([]);
+  });
+
   it("switches primary with one env var and keeps the Claude adapter inactive without a key", () => {
     const claudeFirst = buildChain({
       LLM_PROVIDER: "anthropic",
