@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { GmailClient } from "../channels/email/gmail-client.ts";
 import { createServiceClient } from "../db/client.ts";
 import { SupabaseRepo } from "../db/supabase-repo.ts";
@@ -17,6 +18,8 @@ export interface Container {
   deps: PipelineDeps;
   store: SupabaseStore;
   chat: ChatStore;
+  /** Service-role client (bypasses RLS): only for server actions that already checked roles. */
+  db: SupabaseClient;
   gmail: GmailClient | null;
   defaultTenantId: () => Promise<string>;
 }
@@ -55,6 +58,7 @@ export function buildContainer(source: Record<string, string | undefined>): Cont
   return {
     env,
     store,
+    db,
     chat: new SupabaseChatStore(db),
     gmail,
     deps: {

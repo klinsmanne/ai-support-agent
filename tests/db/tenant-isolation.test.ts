@@ -292,3 +292,37 @@ describe("create_refund_checked (atomic refund)", () => {
     ).rejects.toThrow(/permission denied/);
   });
 });
+
+describe("dashboard_metrics", () => {
+  it("computes KPIs for members and returns nothing of another tenant's", async () => {
+    await db.exec(`
+      insert into public.tickets (id, tenant_id, channel, status, created_at, first_response_at, is_spam) values
+        ('00000000-0000-4000-8000-00000000a001', '${HARBOR}', 'email', 'resolved', now() - interval '1 hour', now() - interval '59 minutes', false),
+        ('00000000-0000-4000-8000-00000000a002', '${HARBOR}', 'email', 'escalated', now() - interval '1 hour', null, false),
+        ('00000000-0000-4000-8000-00000000a003', '${HARBOR}', 'email', 'closed', now(), null, true);
+      insert into public.messages (tenant_id, ticket_id, direction, author, status, body) values
+        ('${HARBOR}', '00000000-0000-4000-8000-00000000a001', 'outbound', 'ai', 'sent', 'answer');
+      insert into public.escalations (tenant_id, ticket_id, reason_codes, summary) values
+        ('${HARBOR}', '00000000-0000-4000-8000-00000000a002', array['customer_requested_human'], 'x');
+    `);
+    const q = `select public.dashboard_metrics($1, 30) as m`;
+    const mine = (await asUser<{ m: Record<string, number> }>(db, HARBOR_OWNER, q, [HARBOR]))
+      .rows[0].m;
+    expect(mine).toMatchObject({
+      auto_resolved: 1,
+      escalated: 1,
+      spam_closed: 1,
+      median_first_response_seconds: 60,
+    });
+    expect(mine.handled).toBeGreaterThanOrEqual(3); // includes isolation-test tickets created earlier
+    const theirs = (await asUser<{ m: Record<string, number> }>(db, CADENCE_AGENT, q, [HARBOR]))
+      .rows[0].m;
+    expect(theirs).toMatchObject({ tickets_total: 0, auto_resolved: 0 });
+  });
+
+  it("is not callable anonymously", async () => {
+    await expect(
+      asUser(db, null, `select public.dashboard_metrics('${HARBOR}', 30)`),
+    ).rejects.toThrow(/permission denied/);
+  });
+});
