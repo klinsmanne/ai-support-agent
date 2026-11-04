@@ -60,19 +60,12 @@ export class SupabaseChatStore implements ChatStore {
     return (data?.customer_id as string | undefined) ?? null;
   }
 
+  /** Called only on success; attempt counting uses the atomic rate limiter, not this row. */
   async recordVerification(tenantId: string, sessionId: string, customerId: string | null) {
-    const { data } = await this.db
-      .from("chat_sessions")
-      .select("verification_attempts")
-      .eq("tenant_id", tenantId)
-      .eq("id", sessionId)
-      .single();
+    if (!customerId) return;
     await this.db
       .from("chat_sessions")
-      .update({
-        verification_attempts: (data?.verification_attempts ?? 0) + 1,
-        ...(customerId ? { verified_customer_id: customerId } : {}),
-      })
+      .update({ verified_customer_id: customerId })
       .eq("tenant_id", tenantId)
       .eq("id", sessionId);
   }

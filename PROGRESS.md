@@ -16,9 +16,8 @@ _Last updated: 2026-11-03_
 
 ## In progress (resume here)
 
-- **Milestone E — Channels (branch `milestone/e-channels`, not yet a PR):** Gmail client + poller (`npm run email:poll`, verified live), shared ticket pipeline (dedupe, loop filters, sender verification, threading, rate limits, rollout modes, audit), chat API + widget (signed sessions, order+email verification). 197 tests pass.
-- **Blocking issue found in live chat test:** Gemini free _daily_ quotas were exhausted by today's testing; the router treated them as per-minute limits (waited 8 s), then the 45 s budget ran out before Groq was tried. **Next fix:** in `src/lib/llm/router.ts` + `gemini.ts`, detect daily-quota 429s (quotaId contains `PerDay`) → long cool-down (hours) and no wait; only wait when a retry hint exists; consider putting Groq earlier in the agent chain and spreading across more Groq models (gpt-oss-20b, qwen). Then re-test chat at http://localhost:3000 and a live email from a personal address.
-- Then: open PR for milestone E (run security + quality review subagents first), schedule pg_cron polling at deploy time.
+- **Milestone E — Channels (PR #10):** Gmail + chat channels and shared pipeline, verified live (chat answer from live DB; email reply in-thread; "human" reply escalated). Router handles daily free-tier quotas (ADR-015). Security + quality review findings fixed (ADR-016/017): DMARC-aligned sender auth, no backscatter, at-most-once processing with stale sweep, human-owned tickets, per-sender email tickets, draining poll queue, brute-force-resistant chat verification. 216 tests. → merge after CI.
+- Then **Milestone F — Dashboard** (Supabase Auth login, tickets + trace view, escalation approve/edit/send, settings incl. kill switch and Harbor threshold −0.85, metrics, free-tier usage).
 
 ## Previously in progress
 

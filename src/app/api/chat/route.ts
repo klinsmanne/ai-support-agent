@@ -3,16 +3,25 @@ import { getContainer } from "@/lib/server/container";
 
 export const maxDuration = 60;
 
-/** Same-origin check: the widget lives on our own site, so cross-site POSTs are refused (CSRF). */
+/**
+ * Same-origin check: the widget lives on our own site, so cross-site POSTs are refused (CSRF).
+ * Compares against the Host header (set by Vercel's edge, not the client) and APP_URL; the
+ * client-controllable x-forwarded-host is deliberately ignored.
+ */
 function sameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
-  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-  if (!origin || !host) return false;
+  if (!origin) return false;
+  let originHost: string;
   try {
-    return new URL(origin).host === host;
+    originHost = new URL(origin).host;
   } catch {
     return false;
   }
+  const allowed = new Set([
+    request.headers.get("host"),
+    process.env.APP_URL ? new URL(process.env.APP_URL).host : null,
+  ]);
+  return allowed.has(originHost);
 }
 
 async function verifyTurnstile(token: string | undefined, ip: string): Promise<boolean> {
@@ -39,10 +48,8 @@ export async function POST(request: Request) {
   const c = getContainer();
   const secret = c.env.CSRF_SECRET;
   if (!secret) return Response.json({ error: "chat not configured" }, { status: 503 });
-  const ip =
-    request.headers.get("x-real-ip") ??
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "unknown";
+  // x-real-ip is set by Vercel's edge; x-forwarded-for can be prefixed by the client, so it's not used.
+  const ip = request.headers.get("x-real-ip") ?? "unknown";
 
   const result = await handleChat(parsed.data, ip, {
     pipeline: c.deps,

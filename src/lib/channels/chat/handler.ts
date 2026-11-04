@@ -88,14 +88,19 @@ export async function handleChat(
   const sessionToken = signSession(session.id, deps.secret);
 
   if (req.verify) {
-    if (session.verificationAttempts >= 5)
+    const orderNumber = req.verify.orderNumber.replace(/^#/, "").toUpperCase();
+    const email = req.verify.email.toLowerCase();
+    // Atomic counters (no read-then-write race): 5 tries per session, and 10/day per email and per
+    // order number across ALL sessions, so opening new sessions doesn't help a brute-forcer.
+    const store = deps.pipeline.store;
+    const allowed =
+      (await store.rateLimit(`verify-session:${session.id}`, 86_400, 5)) &&
+      (await store.rateLimit(`verify-email:${tenantId}:${email}`, 86_400, 10)) &&
+      (await store.rateLimit(`verify-order:${tenantId}:${orderNumber}`, 86_400, 10));
+    if (!allowed)
       return { sessionToken, reply: VERIFY_FAILED, verified: false, status: "verify_failed" };
-    const customerId = await deps.chat.verifyCustomer(
-      tenantId,
-      req.verify.orderNumber.replace(/^#/, "").toUpperCase(),
-      req.verify.email.toLowerCase(),
-    );
-    await deps.chat.recordVerification(tenantId, session.id, customerId);
+    const customerId = await deps.chat.verifyCustomer(tenantId, orderNumber, email);
+    if (customerId) await deps.chat.recordVerification(tenantId, session.id, customerId);
     return customerId
       ? {
           sessionToken,
@@ -128,7 +133,7 @@ export async function handleChat(
       subject: "Website chat",
       text: req.message!,
       receivedAt: new Date().toISOString(),
-      auth: { spf: "none", dkim: "none", dmarc: "none" },
+      auth: { spf: "none", dkim: "none", dmarc: "none", aligned: false },
       headers: {},
     },
     deps.pipeline,
@@ -136,6 +141,9 @@ export async function handleChat(
   );
   const verified = !!session.verifiedCustomerId;
   if (result.status === "processed") {
+    // An escalation's holding reply is "with team", not an answer.
+    if (result.outcome === "escalated")
+      return { sessionToken, reply: WITH_TEAM, verified, status: "with_team" };
     if (result.delivered === "sent" && result.reply)
       return { sessionToken, reply: result.reply, verified, status: "answered" };
     if (result.outcome === "closed_no_reply")

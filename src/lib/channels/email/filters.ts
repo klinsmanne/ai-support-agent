@@ -16,6 +16,7 @@ export type SkipReason =
   | "bulk_precedence"
   | "empty_body";
 
+// Note: X-Auto-Response-Suppress is NOT an auto-reply signal — Outlook adds it to ordinary mail.
 export function emailSkipReason(msg: InboundMessage, ownAddresses: string[]): SkipReason | null {
   const h = msg.headers;
   const from = msg.from.email;
@@ -31,12 +32,7 @@ export function emailSkipReason(msg: InboundMessage, ownAddresses: string[]): Sk
     return /mailer-daemon|postmaster|bounce/i.test(from) ? "bounce" : "no_reply_sender";
   }
   if (h["auto-submitted"] && !/^no$/i.test(h["auto-submitted"].trim())) return "auto_submitted";
-  if (
-    h["x-autoreply"] ||
-    h["x-autorespond"] ||
-    h["x-auto-response-suppress"] ||
-    /^auto[-_ ]?reply/i.test(h["x-mailer"] ?? "")
-  ) {
+  if (h["x-autoreply"] || h["x-autorespond"] || /^auto[-_ ]?reply/i.test(h["x-mailer"] ?? "")) {
     return "auto_reply_header";
   }
   if (

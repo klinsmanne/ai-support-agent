@@ -25,7 +25,7 @@ const msg = (
   subject: "Order question",
   text,
   receivedAt: new Date().toISOString(),
-  auth: { spf: "pass", dkim: "pass", dmarc: "pass" },
+  auth: { spf: "pass", dkim: "pass", dmarc: "pass", aligned: true },
   headers,
 });
 
@@ -64,7 +64,7 @@ describe("parseGmailMessage", () => {
     expect(parsed.from).toEqual({ email: "olivia.bennett@example.com", name: "Olivia Bennett" });
     expect(parsed.to).toEqual([INBOX]);
     expect(parsed.text).toBe("Still not here!");
-    expect(parsed.auth).toEqual({ spf: "pass", dkim: "pass", dmarc: "pass" });
+    expect(parsed.auth).toEqual({ spf: "pass", dkim: "pass", dmarc: "pass", aligned: true });
     expect(parsed.threadKey).toBe("thr");
     expect(parsed.headers["message-id"]).toBe("<CAF123@mail.gmail.com>");
   });
@@ -87,11 +87,13 @@ describe("parseGmailMessage", () => {
       spf: "fail",
       dkim: "none",
       dmarc: "fail",
+      aligned: false,
     });
     expect(parseAuthenticationResults("")).toEqual({
       spf: "unknown",
       dkim: "unknown",
       dmarc: "unknown",
+      aligned: false,
     });
   });
 
@@ -107,6 +109,91 @@ describe("parseGmailMessage", () => {
     expect(stripQuotedReply("Merci\nLe lun. 2 nov. 2026, Support a écrit :\n> bonjour")).toBe(
       "Merci",
     );
+  });
+});
+
+describe("sender authentication (security review)", () => {
+  const google = (rest: string) => `mx.google.com; ${rest}`;
+  it("spf+dkim passing for the ATTACKER's domain does not authenticate a spoofed From", () => {
+    const auth = parseAuthenticationResults(
+      google(
+        "dkim=pass header.i=@evil.example header.s=s1; spf=pass smtp.mailfrom=bounce@evil.example; dmarc=fail header.from=customer.example",
+      ),
+      "victim@customer.example",
+    );
+    expect(auth.aligned).toBe(false);
+  });
+
+  it("aligned DKIM or SPF (same or sub-domain) authenticates even without DMARC", () => {
+    expect(
+      parseAuthenticationResults(
+        google("dkim=pass header.d=customer.example; spf=none"),
+        "a@customer.example",
+      ).aligned,
+    ).toBe(true);
+    expect(
+      parseAuthenticationResults(
+        google("spf=pass smtp.mailfrom=bounces@mail.customer.example"),
+        "a@customer.example",
+      ).aligned,
+    ).toBe(true);
+  });
+
+  it("ignores Authentication-Results headers the sender forged", () => {
+    const parsed = parseGmailMessage({
+      id: "x",
+      threadId: "y",
+      payload: {
+        mimeType: "text/plain",
+        headers: [
+          {
+            name: "Authentication-Results",
+            value: "mx.google.com; spf=softfail smtp.mailfrom=evil.example",
+          },
+          {
+            name: "Authentication-Results",
+            value: "mx.google.com; dmarc=pass header.from=customer.example",
+          }, // attacker-added, lower
+          { name: "Authentication-Results", value: "evil.example; dkim=pass; dmarc=pass" },
+          { name: "From", value: "victim@customer.example" },
+        ],
+        body: { data: b64("Refund me") },
+      },
+    });
+    expect(parsed.auth).toMatchObject({ dmarc: "unknown", aligned: false });
+  });
+
+  it("keeps only the first Message-ID / References (duplicates can't break replies)", () => {
+    const parsed = parseGmailMessage({
+      id: "x",
+      threadId: "y",
+      payload: {
+        mimeType: "text/plain",
+        headers: [
+          { name: "From", value: "a@b.com" },
+          { name: "Message-ID", value: "<one@x>" },
+          { name: "Message-ID", value: "<two@x>" },
+        ],
+        body: { data: b64("hi") },
+      },
+    });
+    expect(parsed.headers["message-id"]).toBe("<one@x>");
+  });
+
+  it("strips Gmail's two-line wrapped attribution (live finding)", () => {
+    expect(
+      stripQuotedReply(
+        "human\n\nOn Wed, Nov 4, 2026 at 9:32 AM Customer Support <\nintegralplantsupport@gmail.com> wrote:\n> Thanks for your message",
+      ),
+    ).toBe("human");
+  });
+
+  it("keeps bottom-posted replies", () => {
+    expect(
+      stripQuotedReply(
+        "On Mon, Nov 2, 2026 Support wrote:\n> Your order shipped\n\nThanks, but it still hasn't arrived.",
+      ),
+    ).toBe("Thanks, but it still hasn't arrived.");
   });
 });
 
@@ -137,6 +224,10 @@ describe("emailSkipReason (loop prevention)", () => {
     ["empty body", msg({}, "   "), "empty_body"],
   ])("skips %s", (_label, m, reason) => {
     expect(emailSkipReason(m as InboundMessage, [INBOX])).toBe(reason);
+  });
+
+  it("does not drop ordinary Outlook mail carrying X-Auto-Response-Suppress", () => {
+    expect(emailSkipReason(msg({ "x-auto-response-suppress": "All" }), [INBOX])).toBeNull();
   });
 
   it("does not skip a normal customer email", () => {

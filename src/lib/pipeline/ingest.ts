@@ -1,16 +1,17 @@
 import type { AgentRepo } from "../agent/domain.ts";
 import { runAgent, type AgentResult } from "../agent/orchestrator.ts";
-import { emailSkipReason, plusTag } from "../channels/email/filters.ts";
+import { baseAddress, emailSkipReason, plusTag } from "../channels/email/filters.ts";
 import type { ChannelSender, InboundMessage } from "../channels/types.ts";
 import type { ModelRouter } from "../llm/router.ts";
 import { maskPII } from "../guardrails/pii.ts";
-import type { PipelineStore } from "./store.ts";
+import type { PipelineStore, TicketRef } from "./store.ts";
 
 /**
  * The ticket pipeline, shared by every channel:
- * route tenant → dedupe → filter loops/noise → rate limits → verify sender → ticket (threaded)
- * → agent → persist run + trace → act per rollout mode → audit. Nothing is ever dropped silently:
- * failures end as `needs_attention` tickets.
+ * route tenant → dedupe → filter loops/noise → verify sender → ticket (threaded, per sender)
+ * → respect human ownership → rate limits → agent → persist run + trace → act per rollout mode
+ * → audit. Nothing is dropped silently: failures end as `needs_attention` tickets, and a message
+ * is never processed twice (so a crash can't cause a duplicate reply).
  */
 
 export interface PipelineDeps {
@@ -26,24 +27,26 @@ export interface PipelineDeps {
   now?: () => Date;
 }
 
+export type Delivery = "sent" | "draft" | "pending_approval" | "none";
+
 export type IngestResult =
   | { status: "duplicate" }
   | { status: "skipped"; reason: string; ticketId: string | null }
   | { status: "rate_limited"; ticketId: string }
+  | { status: "queued_for_human"; ticketId: string }
   | {
       status: "processed";
       ticketId: string;
       outcome: AgentResult["outcome"];
-      delivered: "sent" | "draft" | "pending_approval" | "none";
+      delivered: Delivery;
       reply: string | null;
     }
   | { status: "failed"; ticketId: string | null; error: string };
 
-const LIMITS = {
-  perSenderPerHour: 6,
-  perThreadPerHour: 8,
-  globalPerMinute: 30,
-};
+const LIMITS = { perSenderPerHour: 6, perThreadPerHour: 8, globalPerMinute: 30 };
+
+/** Ticket states owned by a human: new customer messages are attached, the AI doesn't step in. */
+const HUMAN_OWNED = new Set(["escalated", "needs_attention"]);
 
 const HOLDING_REPLY: Record<string, string> = {
   en: "Thanks for your message. A member of our team will review it and reply as soon as possible.",
@@ -69,6 +72,16 @@ export async function resolveTenant(
   return deps.store.tenantIdBySlug(deps.defaultTenantSlug);
 }
 
+/**
+ * Ticket key: chat = session; email = Gmail thread + sender, so a different person replying in
+ * (or forwarding into) someone's thread never sees that customer's conversation history.
+ */
+export function ticketThreadKey(msg: InboundMessage): string {
+  return msg.channel === "email" && msg.from.email
+    ? `${msg.threadKey}|${baseAddress(msg.from.email)}`
+    : msg.threadKey;
+}
+
 export async function ingestMessage(
   msg: InboundMessage,
   deps: PipelineDeps,
@@ -78,13 +91,15 @@ export async function ingestMessage(
   const tenantId = opts.tenantId ?? (await resolveTenant(msg, deps));
   if (!tenantId) return { status: "failed", ticketId: null, error: "no tenant for message" };
 
-  // 1. Idempotency: a provider message is processed at most once, even if polls overlap.
-  if (!(await store.claimMessage(msg.channel, msg.providerMessageId, tenantId)))
+  // 1. Idempotency: a provider message is processed at most once — never re-run after a crash.
+  if (!(await store.claimMessage(msg.channel, msg.providerMessageId, tenantId))) {
     return { status: "duplicate" };
+  }
 
   let ticketId: string | null = null;
   try {
     const settings = await store.settings(tenantId);
+    const threadKey = ticketThreadKey(msg);
 
     // 2. Loop prevention / noise (email): never reply to ourselves, auto-replies, lists, bounces.
     const skip =
@@ -94,27 +109,22 @@ export async function ingestMessage(
           ? null
           : "empty_body";
     if (skip) {
-      const t = await store.findOrCreateTicket(tenantId, msg.channel, msg.threadKey, {
+      const t = await store.findOrCreateTicket(tenantId, msg.channel, threadKey, {
         customerId: null,
         requesterEmail: msg.from.email,
         subject: msg.subject,
         senderVerified: false,
       });
       ticketId = t.id;
-      await store.addMessage(tenantId, t.id, {
-        direction: "inbound",
-        author: "customer",
-        status: "received",
-        body: msg.text,
-        providerMessageId: msg.providerMessageId,
-      });
-      if (t.created)
+      await addInbound(deps, tenantId, t.id, msg);
+      if (t.created) {
         await store.updateTicket(tenantId, t.id, {
           status: "closed",
           is_spam: true,
           intent: "auto_reply",
           closed_at: now(deps),
         });
+      }
       await store.audit(tenantId, {
         actorType: "system",
         action: "message_skipped",
@@ -126,52 +136,60 @@ export async function ingestMessage(
       return { status: "skipped", reason: skip, ticketId: t.id };
     }
 
-    // 3. Sender verification: on file AND (email) authenticated by the receiving server.
+    // 3. Sender verification: on file AND (email) the From domain itself is authenticated.
+    const emailAuthenticated = msg.channel === "chat" || msg.auth.aligned;
     const customerId =
       msg.channel === "chat"
         ? (opts.chatVerifiedCustomerId ?? null)
         : msg.from.email
           ? await store.findCustomerIdByEmail(tenantId, msg.from.email)
           : null;
-    const emailAuthenticated =
-      msg.auth.dmarc === "pass" || (msg.auth.spf === "pass" && msg.auth.dkim === "pass");
-    const senderVerified = !!customerId && (msg.channel === "chat" || emailAuthenticated);
+    const senderVerified = !!customerId && emailAuthenticated;
 
-    const ticket = await store.findOrCreateTicket(tenantId, msg.channel, msg.threadKey, {
+    const ticket = await store.findOrCreateTicket(tenantId, msg.channel, threadKey, {
       customerId: senderVerified ? customerId : null,
       requesterEmail: msg.from.email,
       subject: msg.subject,
       senderVerified,
     });
     ticketId = ticket.id;
-    const inboundId = await store.addMessage(tenantId, ticket.id, {
-      direction: "inbound",
-      author: "customer",
-      status: "received",
-      body: msg.text,
-      providerMessageId: msg.providerMessageId,
-      metadata: {
-        auth: msg.auth,
-        messageIdHeader: msg.headers["message-id"] ?? null,
-        references: msg.headers["references"] ?? null,
-      },
-    });
+    const inboundId = await addInbound(deps, tenantId, ticket.id, msg);
+
+    // 4. A human owns this ticket: attach the follow-up and let them know — the AI stays out.
+    if (HUMAN_OWNED.has(ticket.status)) {
+      await store.audit(tenantId, {
+        actorType: "system",
+        action: "customer_followup",
+        entityType: "ticket",
+        entityId: ticket.id,
+        reason: `follow-up on ${ticket.status} ticket`,
+      });
+      await store.finishMessage(
+        msg.channel,
+        msg.providerMessageId,
+        "done",
+        ticket.id,
+        "human_owned",
+      );
+      return { status: "queued_for_human", ticketId: ticket.id };
+    }
+
+    // Chat customers may verify mid-conversation: record it on the ticket.
+    const reopen =
+      !ticket.created && ["resolved", "awaiting_customer", "closed"].includes(ticket.status);
     await store.updateTicket(tenantId, ticket.id, {
       status: "in_progress",
-      ...(ticket.status === "awaiting_customer" || ticket.status === "resolved"
-        ? { resolved_at: null }
+      ...(reopen ? { resolved_at: null, closed_at: null, is_spam: false } : {}),
+      ...(senderVerified && !ticket.customerId
+        ? { customer_id: customerId, sender_verified: true }
         : {}),
     });
 
-    // 4. Abuse protection: per-sender, per-thread and global rate limits plus the tenant's daily cap.
+    // 5. Abuse protection: per-sender, per-thread and global rate limits plus the daily cap.
     const senderKey = msg.from.email ?? msg.threadKey;
     const allowed =
       (await store.rateLimit(`sender:${tenantId}:${senderKey}`, 3600, LIMITS.perSenderPerHour)) &&
-      (await store.rateLimit(
-        `thread:${tenantId}:${msg.threadKey}`,
-        3600,
-        LIMITS.perThreadPerHour,
-      )) &&
+      (await store.rateLimit(`thread:${tenantId}:${threadKey}`, 3600, LIMITS.perThreadPerHour)) &&
       (await store.rateLimit("global", 60, LIMITS.globalPerMinute)) &&
       (!ticket.created || (await store.ticketsCreatedToday(tenantId)) <= settings.daily_ticket_cap);
     if (!allowed) {
@@ -193,7 +211,7 @@ export async function ingestMessage(
       return { status: "rate_limited", ticketId: ticket.id };
     }
 
-    // 5. The agent.
+    // 6. The agent.
     const conversation = await store.conversation(tenantId, ticket.id);
     const result = await runAgent(
       {
@@ -211,12 +229,7 @@ export async function ingestMessage(
       { router: deps.router, classifierRouter: deps.classifierRouter, repo: deps.repo },
     );
     const runId = await store.saveRun(tenantId, ticket.id, inboundId, result);
-    for (const model of result.models) {
-      const [provider] = model.split(":");
-      await store.addUsage(provider, "requests", 1);
-    }
-    await store.addUsage("all", "tokens_in", result.usage.inputTokens);
-    await store.addUsage("all", "tokens_out", result.usage.outputTokens);
+    await recordUsage(deps, result);
 
     const c = result.classification;
     const triage = c
@@ -228,40 +241,48 @@ export async function ingestMessage(
           injection_suspected: result.injection.suspected,
         }
       : { injection_suspected: result.injection.suspected };
-
-    // 6. Act according to the outcome and the tenant's rollout mode.
-    let delivered: "sent" | "draft" | "pending_approval" | "none" = "none";
-    let replyText: string | null = null;
     const replyMeta = {
       inReplyTo: msg.headers["message-id"] ?? null,
       references: msg.headers["references"] ?? null,
     };
+    // Only authenticated senders get mail from us: otherwise a forged From would make us email a
+    // third party (backscatter). Their drafts wait for a human instead.
+    const mayAutoSend = settings.rollout_mode === "auto_send" && emailAuthenticated;
 
+    let delivered: Delivery = "none";
+    let replyText: string | null = null;
+
+    // 7. Act according to the outcome and the tenant's rollout mode.
     if (result.outcome === "closed_no_reply") {
-      await store.updateTicket(tenantId, ticket.id, {
-        ...triage,
-        status: "closed",
-        is_spam: true,
-        closed_at: now(deps),
-      });
+      // A spam/auto-reply verdict only closes a brand-new ticket, never an existing conversation.
+      await store.updateTicket(
+        tenantId,
+        ticket.id,
+        ticket.created
+          ? { ...triage, status: "closed", is_spam: true, closed_at: now(deps) }
+          : { status: ticket.status === "new" ? "in_progress" : ticket.status },
+      );
     } else if (result.outcome === "resolved" || result.outcome === "awaiting_customer") {
       replyText = result.reply!;
-      if (settings.rollout_mode === "auto_send") {
+      if (mayAutoSend) {
         delivered = await deliver(deps, tenantId, ticket.id, msg, replyText, replyMeta);
-        await store.updateTicket(tenantId, ticket.id, {
-          ...triage,
-          status: delivered === "sent" ? result.outcome : "needs_attention",
-          ai_reply_count: ticket.aiReplyCount + 1,
-          ...(result.outcome === "resolved" ? { resolved_at: now(deps) } : {}),
-          ...(ticket.firstResponseAt
-            ? {}
-            : delivered === "sent"
-              ? { first_response_at: now(deps) }
-              : {}),
-        });
+        await store.updateTicket(
+          tenantId,
+          ticket.id,
+          delivered === "sent"
+            ? {
+                ...triage,
+                status: result.outcome,
+                ai_reply_count: ticket.aiReplyCount + 1,
+                ...(result.outcome === "resolved" ? { resolved_at: now(deps) } : {}),
+                ...(ticket.firstResponseAt ? {} : { first_response_at: now(deps) }),
+              }
+            : { ...triage, status: "needs_attention" },
+        );
       } else {
-        // shadow: draft only for comparison; draft_only: a human approves before sending.
-        delivered = settings.rollout_mode === "draft_only" ? "pending_approval" : "draft";
+        // shadow: draft only for comparison; draft_only / unauthenticated: a human approves first.
+        const needsApproval = settings.rollout_mode !== "shadow";
+        delivered = needsApproval ? "pending_approval" : "draft";
         await store.addMessage(tenantId, ticket.id, {
           direction: "outbound",
           author: "ai",
@@ -269,10 +290,10 @@ export async function ingestMessage(
           body: replyText,
           metadata: replyMeta,
         });
-        if (settings.rollout_mode === "draft_only") {
+        if (needsApproval) {
           await store.createEscalation(tenantId, ticket.id, {
             runId,
-            reasonCodes: ["draft_review"],
+            reasonCodes: [emailAuthenticated ? "draft_review" : "unauthenticated_sender"],
             summary: c?.summary ?? "AI draft awaiting approval",
             investigation: investigation(result),
             suggestedReply: replyText,
@@ -280,7 +301,8 @@ export async function ingestMessage(
         }
         await store.updateTicket(tenantId, ticket.id, {
           ...triage,
-          status: settings.rollout_mode === "draft_only" ? "escalated" : "in_progress",
+          status: needsApproval ? "escalated" : "in_progress",
+          ...(needsApproval ? { escalated_at: now(deps) } : {}),
         });
       }
     } else {
@@ -293,22 +315,15 @@ export async function ingestMessage(
         suggestedReply: result.escalation?.suggestedReply ?? null,
         pendingAction: result.actions.find((a) => a.status === "pending_approval") ?? null,
       });
-      // A short holding reply keeps first-response time low while a human reviews (auto_send only).
+      // A short holding reply keeps first-response time low while a human reviews.
       if (
-        settings.rollout_mode === "auto_send" &&
-        ticket.aiReplyCount < settings.max_ai_replies_per_thread &&
-        !settings.kill_switch
+        mayAutoSend &&
+        !settings.kill_switch &&
+        ticket.aiReplyCount < settings.max_ai_replies_per_thread
       ) {
-        const lang = c?.language ?? "en";
-        delivered = await deliver(
-          deps,
-          tenantId,
-          ticket.id,
-          msg,
-          HOLDING_REPLY[lang] ?? HOLDING_REPLY.en,
-          replyMeta,
-        );
-        replyText = HOLDING_REPLY[lang] ?? HOLDING_REPLY.en;
+        const holding = HOLDING_REPLY[c?.language ?? "en"] ?? HOLDING_REPLY.en;
+        delivered = await deliver(deps, tenantId, ticket.id, msg, holding, replyMeta);
+        if (delivered === "sent") replyText = holding;
       }
       await store.updateTicket(tenantId, ticket.id, {
         ...triage,
@@ -339,7 +354,12 @@ export async function ingestMessage(
       entityType: "ticket",
       entityId: ticket.id,
       reason: result.escalation?.reasons.join(", "),
-      details: { runId, delivered, injection: result.injection },
+      details: {
+        runId,
+        delivered,
+        injection: result.injection,
+        senderAuthenticated: emailAuthenticated,
+      },
     });
     await store.finishMessage(msg.channel, msg.providerMessageId, "done", ticket.id);
     return {
@@ -369,6 +389,30 @@ export async function ingestMessage(
   }
 }
 
+function addInbound(deps: PipelineDeps, tenantId: string, ticketId: string, msg: InboundMessage) {
+  return deps.store.addMessage(tenantId, ticketId, {
+    direction: "inbound",
+    author: "customer",
+    status: "received",
+    body: msg.text,
+    providerMessageId: msg.providerMessageId,
+    metadata: {
+      auth: msg.auth,
+      messageIdHeader: msg.headers["message-id"] ?? null,
+      references: msg.headers["references"] ?? null,
+    },
+  });
+}
+
+async function recordUsage(deps: PipelineDeps, result: AgentResult) {
+  // Per model call (not per distinct model) so free-tier quota tracking isn't under-counted.
+  const providers = new Set(result.models.map((m) => m.split(":")[0]));
+  await deps.store.addUsage("all", "requests", result.usage.modelCalls);
+  for (const p of providers) await deps.store.addUsage(p, "tickets", 1);
+  await deps.store.addUsage("all", "tokens_in", result.usage.inputTokens);
+  await deps.store.addUsage("all", "tokens_out", result.usage.outputTokens);
+}
+
 async function deliver(
   deps: PipelineDeps,
   tenantId: string,
@@ -376,9 +420,9 @@ async function deliver(
   msg: InboundMessage,
   body: string,
   meta: { inReplyTo: string | null; references: string | null },
-): Promise<"sent" | "none"> {
+): Promise<Delivery> {
   // Chat replies are returned synchronously by the API route; they're recorded as sent here.
-  if (msg.channel === "chat" || !deps.sender) {
+  if (msg.channel === "chat") {
     await deps.store.addMessage(tenantId, ticketId, {
       direction: "outbound",
       author: "ai",
@@ -388,7 +432,16 @@ async function deliver(
     });
     return "sent";
   }
-  if (!msg.from.email) return "none";
+  if (!deps.sender || !msg.from.email) {
+    await deps.store.addMessage(tenantId, ticketId, {
+      direction: "outbound",
+      author: "ai",
+      status: "failed",
+      body,
+      metadata: { ...meta, error: "no email sender configured" },
+    });
+    return "none";
+  }
   try {
     const sent = await deps.sender.send({
       channel: msg.channel,
@@ -433,3 +486,5 @@ function investigation(result: AgentResult) {
 }
 
 const now = (deps: PipelineDeps) => (deps.now?.() ?? new Date()).toISOString();
+
+export type { TicketRef };

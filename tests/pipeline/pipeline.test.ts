@@ -88,7 +88,7 @@ const email = (over: Partial<InboundMessage> = {}): InboundMessage => ({
   subject: "Order 1042",
   text: "Where is my order #1042?",
   receivedAt: new Date().toISOString(),
-  auth: { spf: "pass", dkim: "pass", dmarc: "pass" },
+  auth: { spf: "pass", dkim: "pass", dmarc: "pass", aligned: true },
   headers: { "message-id": "<m1@mail.example.com>" },
   ...over,
 });
@@ -147,7 +147,10 @@ describe("email pipeline", () => {
       [call("get_orders", { order_number: "1042" })],
       [call("send_reply", { message: "General help only." })],
     ]);
-    await ingestMessage(email({ auth: { spf: "fail", dkim: "fail", dmarc: "fail" } }), deps(r));
+    await ingestMessage(
+      email({ auth: { spf: "fail", dkim: "fail", dmarc: "fail", aligned: false } }),
+      deps(r),
+    );
     expect(store.tickets[0]).toMatchObject({ sender_verified: false });
     expect(store.runs[0].result.trace.find((t) => t.name === "get_orders")?.output).toMatchObject({
       error: "sender_not_verified",
@@ -254,5 +257,139 @@ describe("email pipeline", () => {
     expect(res).toMatchObject({ status: "processed", delivered: "none" });
     expect(store.tickets[0].status).toBe("needs_attention");
     expect(store.messages.find((m) => m.direction === "outbound")?.status).toBe("failed");
+  });
+
+  // ── Milestone E review regressions ─────────────────────────────────────────────────────────
+  it("never emails an unauthenticated sender (no backscatter); the draft waits for a human", async () => {
+    const r = router([[call("send_reply", { message: "Our return policy is 30 days." })]]);
+    const res = await ingestMessage(
+      email({
+        from: { email: "victim@third-party.example", name: null },
+        auth: { spf: "fail", dkim: "fail", dmarc: "fail", aligned: false },
+      }),
+      deps(r),
+    );
+    expect(res).toMatchObject({ status: "processed", delivered: "pending_approval" });
+    expect(sent).toHaveLength(0);
+    expect(store.escalations[0].reasonCodes).toEqual(["unauthenticated_sender"]);
+  });
+
+  it("follow-ups on a human-owned (escalated) ticket are attached without re-running the AI", async () => {
+    const r = router(
+      [
+        [
+          call("escalate_to_human", {
+            reason: "customer_requested_human",
+            summary: "Wants a person please.",
+            suggested_reply: "On it.",
+          }),
+        ],
+      ],
+      { wants_human: true },
+    );
+    await ingestMessage(email({ text: "Human please" }), deps(r));
+    const callsBefore = r.calls.length;
+    const sentBefore = sent.length;
+    const res = await ingestMessage(email({ text: "Hello? Anyone?" }), deps(r));
+    expect(res.status).toBe("queued_for_human");
+    expect(r.calls.length).toBe(callsBefore);
+    expect(sent.length).toBe(sentBefore);
+    expect(store.escalations).toHaveLength(1);
+    expect(store.tickets[0].status).toBe("escalated");
+  });
+
+  it("a spam verdict on a follow-up does not close the existing conversation", async () => {
+    const first = router([
+      [call("send_reply", { message: "Checking.", expects_customer_reply: true })],
+    ]);
+    await ingestMessage(email({ text: "Where is my order?" }), deps(first));
+    expect(store.tickets[0].status).toBe("awaiting_customer");
+    await ingestMessage(
+      email({ text: "BUY NOW cheap pills" }),
+      deps(router([], { intent: "spam" })),
+    );
+    expect(store.tickets[0].status).not.toBe("closed");
+    expect(store.tickets[0].is_spam).not.toBe(true);
+  });
+
+  it("a different sender in the same Gmail thread gets a separate ticket (no history leak)", async () => {
+    const r = router([[call("send_reply", { message: "ok" })]]);
+    await ingestMessage(email({ text: "Olivia's private details" }), deps(r));
+    await ingestMessage(
+      email({ from: { email: "marcus.lee@example.com", name: null }, text: "What did she say?" }),
+      deps(r),
+    );
+    expect(store.tickets).toHaveLength(2);
+    const lastPrompt = JSON.stringify(r.calls.filter((c) => c.tools).at(-1)!.messages);
+    expect(lastPrompt).not.toContain("Olivia's private details");
+  });
+
+  it("without an email sender configured, nothing is marked as sent", async () => {
+    const r = router([[call("send_reply", { message: "Hi" })]]);
+    const res = await ingestMessage(email(), { ...deps(r), sender: null });
+    expect(res).toMatchObject({ delivered: "none" });
+    expect(store.tickets[0].status).toBe("needs_attention");
+  });
+
+  it("a message that failed is never re-run automatically (no duplicate replies)", async () => {
+    const r = router([[call("send_reply", { message: "Hi" })]]);
+    const m = email();
+    let failOnce = true;
+    const flaky = {
+      ...deps(r),
+      store: Object.assign(Object.create(store), {
+        saveRun: async () => {
+          if (failOnce) {
+            failOnce = false;
+            throw new Error("db down");
+          }
+          return "run";
+        },
+      }),
+    };
+    expect((await ingestMessage(m, flaky)).status).toBe("failed");
+    expect(await ingestMessage(m, deps(r))).toEqual({ status: "duplicate" });
+    expect(store.tickets[0].status).toBe("needs_attention");
+  });
+});
+
+describe("Gmail poller", () => {
+  it("drains a backlog larger than one cycle instead of re-reading the same messages", async () => {
+    const { pollGmail } = await import("@/lib/channels/email/poll");
+    const ids = Array.from({ length: 10 }, (_, n) => `m${n}`);
+    let historyCalls = 0;
+    const gmail = {
+      profile: async () => ({ emailAddress: INBOX, historyId: "1" }),
+      recentInboxIds: async () => [],
+      newMessageIdsSince: async () => ({
+        ids: historyCalls++ === 0 ? ids : [],
+        historyId: String(10 + historyCalls),
+      }),
+      getMessage: async (id: string) => ({
+        id,
+        threadId: `t-${id}`,
+        payload: {
+          mimeType: "text/plain",
+          headers: [
+            {
+              name: "From",
+              value: `visitor-${id}@example.net`,
+            } /* distinct senders: isolate the poller from per-sender limits */,
+            { name: "Authentication-Results", value: "mx.google.com; dmarc=pass" },
+          ],
+          body: { data: Buffer.from(`msg ${id}`).toString("base64url") },
+        },
+      }),
+      labelProcessed: async () => {},
+    };
+    await store.setChannelState(HP, "email", { historyId: "1" });
+    const r = router([[call("send_reply", { message: "ok" })]]);
+    const seen = new Set<string>();
+    for (let cycle = 0; cycle < 3; cycle++) {
+      const report = await pollGmail(gmail as never, deps(r), HP);
+      report.results.filter((x) => x.status === "processed").forEach((x) => seen.add(x.id));
+    }
+    expect([...seen].sort()).toEqual([...ids].sort()); // 4 + 4 + 2: everything processed, in order
+    expect((await store.channelState(HP, "email")).pending).toEqual([]);
   });
 });

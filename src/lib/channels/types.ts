@@ -11,6 +11,11 @@ export interface SenderAuth {
   spf: "pass" | "fail" | "none" | "unknown";
   dkim: "pass" | "fail" | "none" | "unknown";
   dmarc: "pass" | "fail" | "none" | "unknown";
+  /**
+   * The From domain itself is authenticated: DMARC passed, or SPF/DKIM passed for a domain
+   * aligned with From. Plain spf=pass + dkim=pass only proves the *attacker's* domain.
+   */
+  aligned: boolean;
 }
 
 export interface InboundMessage {

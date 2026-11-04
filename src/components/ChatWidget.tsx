@@ -28,6 +28,8 @@ export function ChatWidget() {
   const [order, setOrder] = useState("");
   const [email, setEmail] = useState("");
   const token = useRef<string | undefined>(undefined);
+  // Bumped on tenant switch; responses from an older conversation are ignored.
+  const conversationId = useRef(0);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,12 +40,16 @@ export function ChatWidget() {
     setTenant(slug);
     setMessages([]);
     setVerified(false);
+    setShowVerify(false);
     token.current = undefined;
+    conversationId.current++;
   }
 
   async function post(
     body: Record<string, unknown>,
   ): Promise<{ reply: string | null; verified: boolean } | null> {
+    const myConversation = conversationId.current;
+    const stale = () => myConversation !== conversationId.current;
     setBusy(true);
     try {
       const res = await fetch("/api/chat", {
@@ -52,6 +58,7 @@ export function ChatWidget() {
         body: JSON.stringify({ tenant, sessionToken: token.current, ...body }),
       });
       const json = await res.json();
+      if (stale()) return null;
       if (!res.ok) {
         setMessages((m) => [
           ...m,
@@ -63,6 +70,7 @@ export function ChatWidget() {
       setVerified(json.verified);
       return json;
     } catch {
+      if (stale()) return null;
       setMessages((m) => [...m, { from: "system", text: "Network error — please try again." }]);
       return null;
     } finally {

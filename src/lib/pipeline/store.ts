@@ -7,6 +7,7 @@ import type { TenantSettings } from "../tenants/config.ts";
 export interface TicketRef {
   id: string;
   status: string;
+  customerId: string | null;
   aiReplyCount: number;
   created: boolean;
   firstResponseAt: string | null;
@@ -18,7 +19,10 @@ export type MessageStatus =
 export interface PipelineStore {
   tenantIdBySlug(slug: string): Promise<string | null>;
   settings(tenantId: string): Promise<TenantSettings & { kill_switch: boolean }>;
-  /** Idempotency: true only for the first caller with this provider message id. */
+  /**
+   * Idempotency: true only for the first caller with this provider message id. Never true again,
+   * even after a failure — a re-run could send a second reply; failures go to a human instead.
+   */
   claimMessage(provider: string, providerMessageId: string, tenantId: string): Promise<boolean>;
   finishMessage(
     provider: string,
@@ -87,6 +91,8 @@ export interface PipelineStore {
   rateLimit(key: string, windowSeconds: number, max: number): Promise<boolean>;
   ticketsCreatedToday(tenantId: string): Promise<number>;
   addUsage(provider: string, metric: string, value: number): Promise<void>;
+  /** Messages stuck in "processing" (crashed/timed-out run) → failed + ticket needs_attention. */
+  sweepStale(olderThanMinutes: number): Promise<number>;
   channelState(tenantId: string, channel: ChannelId): Promise<Record<string, unknown>>;
   setChannelState(
     tenantId: string,

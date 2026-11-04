@@ -73,6 +73,7 @@ export class MemoryStore implements PipelineStore {
       return {
         id: t.id,
         status: t.status,
+        customerId: (t.customer_id as string | null) ?? null,
         aiReplyCount: t.ai_reply_count,
         created: false,
         firstResponseAt: (t.first_response_at as string) ?? null,
@@ -87,8 +88,16 @@ export class MemoryStore implements PipelineStore {
       ai_reply_count: 0,
       customer_id: init.customerId,
       sender_verified: init.senderVerified,
+      created_at: Date.now(),
     });
-    return { id, status: "new", aiReplyCount: 0, created: true, firstResponseAt: null };
+    return {
+      id,
+      status: "new",
+      customerId: init.customerId,
+      aiReplyCount: 0,
+      created: true,
+      firstResponseAt: null,
+    };
   }
   async addMessage(
     tenantId: string,
@@ -113,6 +122,7 @@ export class MemoryStore implements PipelineStore {
           m.ticket_id === ticketId &&
           (m.status === "received" || m.status === "sent"),
       )
+      .slice(-40) // same window as production: newest 40, oldest first
       .map((m) => ({
         author: (m.author === "customer" ? "customer" : m.author === "ai" ? "ai" : "human") as
           "customer" | "ai" | "human",
@@ -151,7 +161,14 @@ export class MemoryStore implements PipelineStore {
     return n <= max;
   }
   async ticketsCreatedToday(tenantId: string) {
-    return this.tickets.filter((t) => t.tenant_id === tenantId).length;
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    return this.tickets.filter(
+      (t) => t.tenant_id === tenantId && Number(t.created_at) >= today.getTime(),
+    ).length;
+  }
+  async sweepStale() {
+    return 0; // in-memory runs can't crash half-way across processes
   }
   async addUsage(provider: string, metric: string, value: number) {
     const k = `${provider}:${metric}`;

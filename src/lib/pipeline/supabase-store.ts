@@ -43,17 +43,31 @@ export class SupabaseStore implements PipelineStore {
       .from("processed_messages")
       .insert({ provider, provider_message_id: providerMessageId, tenant_id: tenantId });
     if (!error) return true;
-    if (error.code !== "23505") throw new Error(`claim: ${error.message}`);
-    // Already seen. A previous attempt that failed may be retried (bounded) — never a done one.
-    const { data } = await this.db
+    if (error.code === "23505") return false; // already seen — never processed twice
+    throw new Error(`claim: ${error.message}`);
+  }
+
+  async sweepStale(olderThanMinutes: number) {
+    const cutoff = new Date(Date.now() - olderThanMinutes * 60_000).toISOString();
+    const { data, error } = await this.db
       .from("processed_messages")
-      .update({ status: "processing", attempts: 2 })
-      .eq("provider", provider)
-      .eq("provider_message_id", providerMessageId)
-      .eq("status", "failed")
-      .lt("attempts", 2)
-      .select("provider_message_id");
-    return !!data?.length;
+      .update({ status: "failed", last_error: "stale: run did not finish (crash or timeout)" })
+      .eq("status", "processing")
+      .lt("updated_at", cutoff)
+      .select("tenant_id, ticket_id");
+    if (error) throw new Error(`sweep: ${error.message}`);
+    for (const row of data ?? []) {
+      if (row.ticket_id)
+        await this.updateTicket(row.tenant_id, row.ticket_id, { status: "needs_attention" });
+      await this.audit(row.tenant_id, {
+        actorType: "system",
+        action: "message_stale",
+        entityType: "ticket",
+        entityId: row.ticket_id ?? undefined,
+        reason: "processing did not finish; handed to a human",
+      });
+    }
+    return data?.length ?? 0;
   }
 
   async finishMessage(
@@ -90,18 +104,21 @@ export class SupabaseStore implements PipelineStore {
       subject: string | null;
       senderVerified: boolean;
     },
+    retried = false,
   ): Promise<TicketRef> {
     const existing = await this.db
       .from("tickets")
-      .select("id, status, ai_reply_count, first_response_at")
+      .select("id, status, customer_id, ai_reply_count, first_response_at")
       .eq("tenant_id", tenantId)
       .eq("channel", channel)
       .eq("external_thread_id", threadKey)
       .maybeSingle();
+    if (existing.error) throw new Error(`ticket lookup: ${existing.error.message}`);
     if (existing.data) {
       return {
         id: existing.data.id,
         status: existing.data.status,
+        customerId: existing.data.customer_id,
         aiReplyCount: existing.data.ai_reply_count,
         created: false,
         firstResponseAt: existing.data.first_response_at,
@@ -120,12 +137,14 @@ export class SupabaseStore implements PipelineStore {
       })
       .select("id, status")
       .single();
-    if (inserted.error?.code === "23505")
-      return this.findOrCreateTicket(tenantId, channel, threadKey, init); // concurrent creator won
+    // A concurrent creator won the unique (tenant, channel, thread) race: read theirs — once.
+    if (inserted.error?.code === "23505" && !retried)
+      return this.findOrCreateTicket(tenantId, channel, threadKey, init, true);
     const row = this.check(inserted, "ticket");
     return {
       id: row.id,
       status: row.status,
+      customerId: init.customerId,
       aiReplyCount: 0,
       created: true,
       firstResponseAt: null,
@@ -173,11 +192,12 @@ export class SupabaseStore implements PipelineStore {
         .eq("tenant_id", tenantId)
         .eq("ticket_id", ticketId)
         .in("status", ["received", "sent"])
-        .order("created_at", { ascending: true })
+        // Newest 40 (then oldest-first): long threads must never drop the latest customer message.
+        .order("created_at", { ascending: false })
         .limit(40),
       "conversation",
     );
-    return rows.map(
+    return [...rows].reverse().map(
       (r) =>
         ({
           author: r.author === "customer" ? "customer" : r.author === "ai" ? "ai" : "human",

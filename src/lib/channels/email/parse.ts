@@ -23,10 +23,13 @@ export function decodeBase64Url(data: string): string {
 
 /** Converts a Gmail API message into a normalized InboundMessage. */
 export function parseGmailMessage(msg: GmailMessage): InboundMessage {
+  // First value wins: duplicated Message-ID/References headers can't break threading or compose.
   const headers: Record<string, string> = {};
+  const authResults: string[] = [];
   for (const h of msg.payload?.headers ?? []) {
     const key = h.name.toLowerCase();
-    headers[key] = headers[key] ? `${headers[key]}\n${h.value}` : h.value;
+    if (key === "authentication-results") authResults.push(h.value);
+    headers[key] ??= h.value.replace(/[\r\n]+/g, " ");
   }
   const from = parseAddress(headers["from"] ?? "");
   const to = [headers["to"], headers["cc"], headers["delivered-to"]]
@@ -44,7 +47,7 @@ export function parseGmailMessage(msg: GmailMessage): InboundMessage {
     subject: headers["subject"] ?? null,
     text: stripQuotedReply(extractText(msg.payload)).slice(0, MAX_TEXT),
     receivedAt: new Date(Number(msg.internalDate ?? Date.now())).toISOString(),
-    auth: parseAuthenticationResults(headers["authentication-results"] ?? ""),
+    auth: parseAuthenticationResults(trustedAuthResults(authResults), from.email),
     headers,
   };
 }
@@ -94,24 +97,59 @@ export function htmlToText(html: string): string {
 /** Removes quoted history so each ticket message holds only what the customer just wrote. */
 export function stripQuotedReply(text: string): string {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const ATTRIBUTION = /^(On .+ wrote:|El .+ escribió:|Le .+ a écrit\s*:)\s*$/;
+  // Gmail often wraps the attribution over two lines ("On …, Support <" / "x@y.com> wrote:").
+  const attributionAt = (i: number) =>
+    ATTRIBUTION.test(lines[i]) ||
+    (/^(On|El|Le) /.test(lines[i]) &&
+      i + 1 < lines.length &&
+      ATTRIBUTION.test(`${lines[i]} ${lines[i + 1]}`));
   const out: string[] = [];
-  for (const line of lines) {
+  let cut = lines.length;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     if (
-      /^On .+ wrote:\s*$/.test(line) ||
-      /^El .+ escribió:\s*$/.test(line) ||
-      /^Le .+ a écrit\s*:\s*$/.test(line)
-    )
+      attributionAt(i) ||
+      /^-{2,}\s*Original Message\s*-{2,}/i.test(line) ||
+      /^_{5,}/.test(line) ||
+      (/^From: .+/.test(line) && out.length > 0)
+    ) {
+      cut = i;
       break;
-    if (/^-{2,}\s*Original Message\s*-{2,}/i.test(line) || /^_{5,}/.test(line)) break;
-    if (/^From: .+/.test(line) && out.length > 0) break;
+    }
     if (line.startsWith(">")) continue;
     out.push(line);
   }
-  return out.join("\n").trim();
+  const top = out.join("\n").trim();
+  if (top) return top;
+  // Bottom-posted reply (quote first, answer below): keep the non-quoted lines after the quote.
+  return lines
+    .slice(cut)
+    .filter(
+      (l, i, arr) =>
+        !l.startsWith(">") &&
+        !ATTRIBUTION.test(l) &&
+        !(i + 1 < arr.length && ATTRIBUTION.test(`${l} ${arr[i + 1]}`)) &&
+        !(i > 0 && ATTRIBUTION.test(`${arr[i - 1]} ${l}`)),
+    )
+    .join("\n")
+    .trim();
 }
 
-/** Parses SPF/DKIM/DMARC verdicts that the receiving server (Gmail) recorded. */
-export function parseAuthenticationResults(header: string): SenderAuth {
+/**
+ * Only the receiving server's own Authentication-Results header can be trusted: Gmail prepends it,
+ * so it is the topmost one with authserv-id `mx.google.com`. Any copy an attacker adds lower down
+ * (e.g. a fake "dmarc=pass") is ignored.
+ */
+export function trustedAuthResults(headers: string[], authservId = "mx.google.com"): string {
+  return headers.find((h) => h.split(";")[0].trim().toLowerCase() === authservId) ?? "";
+}
+
+/** Parses SPF/DKIM/DMARC verdicts and whether they authenticate the From domain itself. */
+export function parseAuthenticationResults(
+  header: string,
+  fromEmail: string | null = null,
+): SenderAuth {
   const get = (method: string): SenderAuth["spf"] => {
     const m = new RegExp(
       `\\b${method}=(pass|fail|softfail|neutral|none|temperror|permerror)`,
@@ -121,5 +159,22 @@ export function parseAuthenticationResults(header: string): SenderAuth {
     const v = m[1].toLowerCase();
     return v === "pass" ? "pass" : v === "none" ? "none" : "fail";
   };
-  return { spf: get("spf"), dkim: get("dkim"), dmarc: get("dmarc") };
+  const spf = get("spf");
+  const dkim = get("dkim");
+  const dmarc = get("dmarc");
+  const fromDomain = fromEmail?.split("@")[1]?.toLowerCase() ?? null;
+  const dkimDomain = /\bdkim=pass[^;]*?header\.(?:d=|i=[^@\s;]*@)([a-z0-9.-]+)/i.exec(header)?.[1];
+  const spfDomain = /\bspf=pass[^;]*?smtp\.mailfrom=(?:[^@\s;]*@)?([a-z0-9.-]+)/i.exec(header)?.[1];
+  // Relaxed alignment (RFC 7489): same domain or a subdomain of the From domain.
+  const aligns = (d?: string) =>
+    !!d &&
+    !!fromDomain &&
+    (d.toLowerCase() === fromDomain ||
+      d.toLowerCase().endsWith(`.${fromDomain}`) ||
+      fromDomain.endsWith(`.${d.toLowerCase()}`));
+  const aligned =
+    dmarc === "pass" ||
+    (dkim === "pass" && aligns(dkimDomain)) ||
+    (spf === "pass" && aligns(spfDomain));
+  return { spf, dkim, dmarc, aligned };
 }
