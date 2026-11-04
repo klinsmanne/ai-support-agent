@@ -1,4 +1,5 @@
 import {
+  classify429,
   errorKindFromStatus,
   fetchWithTimeout,
   LLMError,
@@ -72,8 +73,7 @@ export class GeminiProvider implements LLMProvider {
     );
     const json = (await res.json().catch(() => ({}))) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- external API payload, narrowed below
     if (!res.ok) {
-      const message = String(json?.error?.message ?? res.statusText).slice(0, 300);
-      throw new LLMError(errorKindFromStatus(res.status), message, this.id, this.model, res.status);
+      throw new LLMError(...geminiError(res.status, json), this.id, this.model, res.status);
     }
 
     const candidate = json.candidates?.[0];
@@ -161,4 +161,31 @@ function toGeminiContents(messages: ChatMessage[], model: string): GeminiContent
     }
   }
   return contents;
+}
+
+/**
+ * Turns a Gemini error payload into (kind, message). For 429s the QuotaFailure detail says which
+ * quota was hit (per-minute vs per-day) and RetryInfo says when to retry; both are folded into
+ * the message so the router can decide between "wait briefly" and "skip this model".
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- external error payload
+export function geminiError(status: number, json: Record<string, any>): [LLMError["kind"], string] {
+  const base = String(json?.error?.message ?? "request failed").slice(0, 200);
+  if (status !== 429) return [errorKindFromStatus(status), base];
+  const details: { "@type"?: string; violations?: { quotaId?: string }[]; retryDelay?: string }[] =
+    json?.error?.details ?? [];
+  const quotaIds = details
+    .flatMap((d) => d.violations ?? [])
+    .map((v) => v.quotaId ?? "")
+    .filter(Boolean);
+  const retry = details.find((d) => d.retryDelay)?.retryDelay; // e.g. "12s"
+  const message = [
+    base,
+    quotaIds.length ? `quota: ${quotaIds.join(",")}` : "",
+    retry ? `Please retry in ${retry}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .slice(0, 400);
+  return [classify429(quotaIds.join(" ")), message];
 }

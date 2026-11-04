@@ -20,6 +20,8 @@ const MIN_ATTEMPT_MS = 1_500;
 
 const COOLDOWN_MS: Record<string, number> = {
   rate_limit: 60_000,
+  // Free-tier daily quotas reset at midnight Pacific; re-probing hourly is cheap (~100 ms).
+  quota_exhausted: 60 * 60_000,
   unavailable: 30_000,
   timeout: 30_000,
 };
@@ -58,7 +60,11 @@ export class ModelRouter {
       if (!(error instanceof RouterExhaustedError) || !this.maxRateLimitWaitMs) throw error;
       const tried = error.attempts.filter((a) => !a.skipped);
       if (!tried.length || !tried.every((a) => a.error?.kind === "rate_limit")) throw error;
-      const hinted = Math.min(...tried.map((a) => retryHintMs(a.error?.message ?? "") ?? 5_000));
+      // Only wait when every provider gave an explicit retry hint (a short per-minute window).
+      // Daily quotas (quota_exhausted) never qualify: waiting can't help, the next model can.
+      const hints = tried.map((a) => retryHintMs(a.error?.message ?? ""));
+      if (hints.some((h) => h === null)) throw error;
+      const hinted = Math.min(...(hints as number[]));
       // Only wait if the wait plus a minimal call still fits before the deadline.
       const left = (req.deadline ?? this.now() + req.timeoutMs) - this.now() - MIN_ATTEMPT_MS;
       const waitMs = Math.min(hinted, this.maxRateLimitWaitMs, Math.max(left, 0));

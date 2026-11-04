@@ -1,4 +1,5 @@
 import {
+  classify429,
   errorKindFromStatus,
   fetchWithTimeout,
   LLMError,
@@ -54,7 +55,8 @@ export class GroqProvider implements LLMProvider {
     const json = (await res.json().catch(() => ({}))) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- external API payload, narrowed below
     if (!res.ok) {
       const message = String(json?.error?.message ?? res.statusText).slice(0, 300);
-      throw new LLMError(errorKindFromStatus(res.status), message, this.id, this.model, res.status);
+      const kind = res.status === 429 ? classify429(message) : errorKindFromStatus(res.status);
+      throw new LLMError(kind, message, this.id, this.model, res.status);
     }
 
     const choice = json.choices?.[0];
