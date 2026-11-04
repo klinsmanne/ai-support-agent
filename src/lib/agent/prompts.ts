@@ -4,7 +4,7 @@ import type { TenantSettings } from "../tenants/config.ts";
  * Versioned prompts. Bump PROMPT_VERSION on any change; eval results are stored per version
  * so regressions are attributable (see evals/).
  */
-export const PROMPT_VERSION = "agent-v1.2.0";
+export const PROMPT_VERSION = "agent-v1.3.0";
 
 export const LANGUAGE_NAMES: Record<string, string> = {
   en: "English",

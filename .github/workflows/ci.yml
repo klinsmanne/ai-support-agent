@@ -33,6 +33,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run format:check
       - run: npm test
+      - name: Eval gate (committed results for the current prompt version meet thresholds)
+        run: npm run eval:gate
       - run: npm run build
 
   secret-scan:

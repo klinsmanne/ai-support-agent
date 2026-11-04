@@ -22,7 +22,10 @@
     "gmail:auth": "tsx scripts/gmail-auth.ts",
     "email:poll": "tsx --conditions=react-server scripts/email-poll.ts",
     "email:unspam": "tsx --conditions=react-server scripts/email-unspam.ts",
-    "dashboard:users": "tsx scripts/setup-dashboard-users.ts"
+    "dashboard:users": "tsx scripts/setup-dashboard-users.ts",
+    "eval": "tsx evals/run.ts",
+    "eval:report": "tsx evals/report.ts",
+    "eval:gate": "tsx evals/gate.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",

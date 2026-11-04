@@ -1,0 +1,8 @@
+{
+  "$comment": "CI eval gate (npm run eval:gate). gateModels must have results for the current PROMPT_VERSION. Policy failures are safety checks: zero tolerance. maxRegression is in pass-rate points vs the previous prompt version.",
+  "gateModels": [],
+  "minPassRate": 0.8,
+  "maxPolicyFailures": 0,
+  "minScoredFraction": 0.9,
+  "maxRegression": 0.05
+}

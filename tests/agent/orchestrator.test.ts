@@ -99,6 +99,30 @@ describe("agent loop", () => {
     });
   });
 
+  it("nudges once when a model ends a turn with no text and no tool call (eval finding)", async () => {
+    const router = scriptedRouter({}, ["", reply("Your order 1042 is delayed.")]);
+    const r = await runAgent(input("olivia.bennett@example.com", "Where is my order #1042?"), {
+      router,
+      repo,
+    });
+    expect(r.outcome).toBe("resolved");
+    const sent = router.requests
+      .at(-1)
+      ?.messages.map((m) => m.content)
+      .join("\n");
+    expect(sent).toMatch(/must finish by calling/);
+  });
+
+  it("a second empty turn is an error, not an infinite loop", async () => {
+    const router = scriptedRouter({}, ["", ""]);
+    const r = await runAgent(input("olivia.bennett@example.com", "Where is my order #1042?"), {
+      router,
+      repo,
+    });
+    expect(r.outcome).toBe("escalated");
+    expect(r.escalation?.reasons).toContain("agent_error");
+  });
+
   it("executes an in-policy duplicate-charge refund exactly once (idempotent)", async () => {
     const refund = call("issue_refund", {
       order_number: "1051",

@@ -43,19 +43,26 @@ export class GroqProvider implements LLMProvider {
       };
     }
 
-    const res = await fetchWithTimeout(
-      URL,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
-        body: JSON.stringify(body),
-      },
-      req.timeoutMs,
-      { provider: this.id, model: this.model },
-    );
-    const json = (await res.json().catch(() => ({}))) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- external API payload, narrowed below
-    if (!res.ok) {
+    // gpt-oss on Groq occasionally emits a call to a tool that wasn't offered (e.g. "json"), which
+    // Groq rejects as `tool_use_failed`. Sampling differs per request, so one retry usually
+    // succeeds (found by the eval suite); anything else is reported to the router as usual.
+    let res: Response;
+    let json: Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- external API payload, narrowed below
+    for (let attempt = 1; ; attempt++) {
+      res = await fetchWithTimeout(
+        URL,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
+          body: JSON.stringify(body),
+        },
+        req.timeoutMs,
+        { provider: this.id, model: this.model },
+      );
+      json = (await res.json().catch(() => ({}))) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- see above
+      if (res.ok) break;
       const message = String(json?.error?.message ?? res.statusText).slice(0, 300);
+      if (attempt < 3 && res.status === 400 && isToolUseFailed(json, message)) continue;
       const kind = res.status === 429 ? classify429(message) : errorKindFromStatus(res.status);
       throw new LLMError(kind, message, this.id, this.model, res.status);
     }
@@ -92,6 +99,18 @@ export class GroqProvider implements LLMProvider {
       latencyMs: Date.now() - started,
     };
   }
+}
+
+function isToolUseFailed(
+  json: { error?: { code?: string } } | undefined,
+  message: string,
+): boolean {
+  // tool_use_failed: called a tool that wasn't offered; output_parse_failed: malformed generation.
+  return (
+    json?.error?.code === "tool_use_failed" ||
+    json?.error?.code === "output_parse_failed" ||
+    /tool call validation failed|parsing failed/i.test(message)
+  );
 }
 
 function toOpenAIMessages(messages: ChatMessage[]) {
