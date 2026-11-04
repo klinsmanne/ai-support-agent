@@ -4,8 +4,8 @@
 
 -- Tenant: cadence-analytics
 
-insert into public.tenants (id, slug, name, industry) values ('86a94b96-589e-5a0c-b255-77213b5ec7e8', 'cadence-analytics', 'Cadence Analytics', 'saas')
-  on conflict (id) do update set name = excluded.name, industry = excluded.industry;
+insert into public.tenants (id, slug, name, industry, is_demo) values ('86a94b96-589e-5a0c-b255-77213b5ec7e8', 'cadence-analytics', 'Cadence Analytics', 'saas', true)
+  on conflict (id) do update set name = excluded.name, industry = excluded.industry, is_demo = excluded.is_demo;
 
 insert into public.tenant_settings (tenant_id, rollout_mode, refund_auto_approve_limit_cents, max_refunds_per_customer_30d,
   escalate_on_negative_sentiment_below, min_confidence_to_act, enabled_tools, brand_name, brand_voice, supported_languages,
@@ -152,8 +152,8 @@ delete from public.kb_documents where tenant_id = '86a94b96-589e-5a0c-b255-77213
 
 -- Tenant: harbor-pine
 
-insert into public.tenants (id, slug, name, industry) values ('11fc6851-09e5-5cff-91e4-5a5f38a515c8', 'harbor-pine', 'Harbor & Pine Home Goods', 'ecommerce')
-  on conflict (id) do update set name = excluded.name, industry = excluded.industry;
+insert into public.tenants (id, slug, name, industry, is_demo) values ('11fc6851-09e5-5cff-91e4-5a5f38a515c8', 'harbor-pine', 'Harbor & Pine Home Goods', 'ecommerce', true)
+  on conflict (id) do update set name = excluded.name, industry = excluded.industry, is_demo = excluded.is_demo;
 
 insert into public.tenant_settings (tenant_id, rollout_mode, refund_auto_approve_limit_cents, max_refunds_per_customer_30d,
   escalate_on_negative_sentiment_below, min_confidence_to_act, enabled_tools, brand_name, brand_voice, supported_languages,
@@ -400,6 +400,7 @@ security definer
 set search_path = ''
 as $reset$
 begin
+if exists (select 1 from public.tenants where id = '86a94b96-589e-5a0c-b255-77213b5ec7e8' and is_demo) then
 -- Tenant: cadence-analytics
 
 delete from public.refunds where tenant_id = '86a94b96-589e-5a0c-b255-77213b5ec7e8';
@@ -457,7 +458,9 @@ on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'c
 delete from public.payments where tenant_id = '86a94b96-589e-5a0c-b255-77213b5ec7e8' and order_id = 'd14a77d2-7c36-5123-a205-100fd1286d03' and id <> all(array['6ac24106-b8b0-5b2d-aeb7-374d20f0a58e']::uuid[]);
 
 delete from public.orders where tenant_id = '86a94b96-589e-5a0c-b255-77213b5ec7e8' and id <> all(array['e4a8f59a-66ef-56f7-83b5-b1aa6ac183ea', '67fb5cfc-c419-5d2b-a502-bfc8e66aaa27', 'd14a77d2-7c36-5123-a205-100fd1286d03']::uuid[]);
+end if;
 
+if exists (select 1 from public.tenants where id = '11fc6851-09e5-5cff-91e4-5a5f38a515c8' and is_demo) then
 -- Tenant: harbor-pine
 
 delete from public.refunds where tenant_id = '11fc6851-09e5-5cff-91e4-5a5f38a515c8';
@@ -599,12 +602,11 @@ on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'c
 delete from public.payments where tenant_id = '11fc6851-09e5-5cff-91e4-5a5f38a515c8' and order_id = '92b8e9dd-b8d5-5be9-b01d-c518fe2afee8' and id <> all(array['5d9aea86-1dab-5b3a-b5f5-e9d0b8560fa4']::uuid[]);
 
 delete from public.orders where tenant_id = '11fc6851-09e5-5cff-91e4-5a5f38a515c8' and id <> all(array['b0c37f86-4fa3-5941-8d8c-97b60c99e9dc', '603a25c6-435d-577e-9f27-d95a81d2cbe9', '880333ee-e94e-58b5-9ad7-16bd332754dd', '1b07e326-73f2-5c0f-8c44-7807ebfed3fb', 'b06fc5c9-e729-5d77-aa45-dbbd77e63aa1', 'e404c346-49c6-5635-b1ec-ee15eb834019', 'cf7ab3d3-3ccd-5ceb-9618-0d84f97d03ab', '92b8e9dd-b8d5-5be9-b01d-c518fe2afee8']::uuid[]);
+end if;
 end;
 $reset$;
 
 revoke all on function public.reset_demo_data() from public, anon, authenticated;
-
-grant execute on function public.reset_demo_data() to service_role;
 
 select public.reset_demo_data();
 

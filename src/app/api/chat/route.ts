@@ -1,4 +1,5 @@
 import { ChatRequestSchema, handleChat } from "@/lib/channels/chat/handler";
+import { verifyTurnstile } from "@/lib/channels/chat/turnstile";
 import { getContainer } from "@/lib/server/container";
 
 export const maxDuration = 60;
@@ -24,24 +25,6 @@ function sameOrigin(request: Request): boolean {
   return allowed.has(originHost);
 }
 
-async function verifyTurnstile(token: string | undefined, ip: string): Promise<boolean> {
-  const secret = process.env.TURNSTILE_SECRET_KEY;
-  // Fail closed in production: a missing key must not silently switch bot protection off.
-  if (!secret) return process.env.NODE_ENV !== "production";
-  if (!token) return false;
-  try {
-    const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-      method: "POST",
-      body: new URLSearchParams({ secret, response: token, remoteip: ip }),
-      signal: AbortSignal.timeout(5_000),
-    });
-    const json = (await res.json().catch(() => ({}))) as { success?: boolean };
-    return json.success === true;
-  } catch {
-    return false; // Cloudflare unreachable: refuse new sessions rather than open the gate
-  }
-}
-
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return Response.json({ error: "forbidden" }, { status: 403 });
   if (!request.headers.get("content-type")?.includes("application/json")) {
@@ -60,7 +43,7 @@ export async function POST(request: Request) {
     pipeline: c.deps,
     chat: c.chat,
     secret,
-    verifyTurnstile,
+    verifyTurnstile: (token, ip) => verifyTurnstile(token, ip, process.env),
   });
   if ("error" in result) return Response.json({ error: result.error }, { status: result.status });
   return Response.json(result);

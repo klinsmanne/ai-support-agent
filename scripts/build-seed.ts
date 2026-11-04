@@ -55,9 +55,10 @@ for (const slug of slugs) {
   );
 }
 
-// Demo state reset, re-run daily by pg_cron (migration 9). Seed values are escaped literals
+// Demo state reset, re-run daily by pg_cron (migration 9) as postgres; no API role may call it.
+// Seed values are escaped literals
 // (lit()), so they can't end the function body; the check below guards the delimiter anyway.
-const resetBody = resets.join("\n\n");
+const resetBody = resets.filter(Boolean).join("\n\n") || "null;";
 if (resetBody.includes("$reset$")) throw new Error("seed data contains the function delimiter");
 parts.push(
   `create or replace function public.reset_demo_data()
@@ -71,7 +72,6 @@ ${resetBody}
 end;
 $reset$;`,
   "revoke all on function public.reset_demo_data() from public, anon, authenticated;",
-  "grant execute on function public.reset_demo_data() to service_role;",
   "select public.reset_demo_data();",
   ...cleanups,
 );

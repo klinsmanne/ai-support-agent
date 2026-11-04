@@ -2,6 +2,7 @@
   "$schema": "../tenant.schema.json",
   "slug": "harbor-pine",
   "name": "Harbor & Pine Home Goods",
+  "demo": true,
   "industry": "ecommerce",
   "settings": {
     "rollout_mode": "auto_send",

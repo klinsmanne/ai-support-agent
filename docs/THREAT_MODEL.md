@@ -42,7 +42,7 @@ Everything that crosses from the left column is **data, never instructions** —
 | Disclosure of real people's emails in the public demo          | Dashboard        | `can_read_ticket()` — viewers see only seeded-customer and chat tickets (migration 7)                                                                                                  | Low                               |
 | Disclosure in replies (system prompt, internal IDs, other PII) | Agent → customer | Output validator: canary token, internal ids, foreign emails, https allowlisted links only; one repair, else human (`guardrails/output.ts`)                                            | Medium (paraphrase)               |
 | Disclosure to model providers                                  | App → LLM        | Email content only to providers contractually barred from training (Groq/Anthropic), keyword-only retrieval for email (ADR-020); PII masked in traces and logs (`guardrails/pii.ts`)   | Low                               |
-| Disclosure via retained data                                   | DB               | `purge_expired_data()` daily per tenant retention; chat sessions 7 days; audit 365 days (migration 9, ADR-019)                                                                         | Low                               |
+| Disclosure via retained data                                   | DB               | `purge_expired_data()` daily: finished tickets past tenant retention; chat sessions 7 days; audit 365 days (migration 9, ADR-019)                                                      | Low                               |
 | **Denial of service** (quota exhaustion, bots)                 | Chat, email      | Turnstile on new chat sessions (fails closed in production); per-IP/sender/thread/global limits; daily ticket cap; spam closed before any model call; kill switch; budgeted agent loop | Medium (free quotas)              |
 | Email loops / auto-reply storms                                | Email            | Skip own address, no-reply, `Auto-Submitted`, `List-Id`, bulk, bounces; per-thread AI reply cap (`channels/email/filters.ts`)                                                          | Low                               |
 | **Elevation of privilege**: viewer → write, model → admin      | Dashboard, agent | `requireRole` in every action + read-only DB grants for `authenticated`; tools are least-privilege, no free-form SQL/URLs/code; suspected injection removes write tools                | Low                               |
@@ -72,7 +72,7 @@ Everything that crosses from the left column is **data, never instructions** —
 | Forged sender asking for a refund                 | `tests/pipeline/pipeline.test.ts` ("does not trust a customer address that failed…") |
 | Injection asking for a $1000 refund               | `tests/agent/orchestrator.test.ts`, live `npm run agent:try -- injection`            |
 | Brute-forcing chat verification                   | `tests/pipeline/chat.test.ts`                                                        |
-| Bot without a Turnstile token                     | Manual: `POST /api/chat` without token → 403                                         |
+| Bot without a Turnstile token                     | `chat/turnstile.test.ts`; manual `POST /api/chat` → 403                              |
 | Double approval / double refund                   | Conditional claim + idempotency key `escalation:<id>`                                |
 | Expired data, shared-demo reset                   | `tests/db/lifecycle.test.ts`                                                         |
 
@@ -81,5 +81,7 @@ Everything that crosses from the left column is **data, never instructions** —
 - **Free-tier availability** is the largest operational risk: a quota outage sends tickets to humans (by design) rather than failing silently, and operators get an email after 3 failures/hour.
 - **`unsafe-inline` scripts** (ADR-021): acceptable while all rendered content is React-escaped; move to nonces if user-generated HTML is ever rendered.
 - **Paraphrased leakage** can evade the output validator; mitigated by tools that never return other customers' data in the first place.
+- **Alerts share Gmail:** a Gmail outage (e.g. expired refresh token) can't alert by email; the dashboard still shows `needs_attention`. Add a second channel in J.
+- **`GEMINI_PAID_TIER=true`** puts Gemini back on the email path; it is logged at startup and must only be set on a billing-enabled project.
 - **Gmail OAuth app in Testing mode** until published (refresh token expires every 7 days) — milestone J.
 - Evals for hallucinated actions and multilingual injection — milestone I.

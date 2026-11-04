@@ -122,6 +122,12 @@ export const TenantConfigSchema = z
     slug: z.string().regex(/^[a-z0-9-]{2,40}$/),
     name: singleLine,
     industry: z.enum(["ecommerce", "saas", "other"]),
+    /**
+     * Fictional demo tenant: its orders and refunds are reset daily (reset_demo_data) so the
+     * public demo keeps working. Never set this for a real client — the reset would erase their
+     * refunds and restore orders to the config. Defaults to false.
+     */
+    demo: z.boolean().default(false),
     settings: TenantSettingsSchema,
     customers: z.array(CustomerSchema),
     orders: z.array(OrderSchema),

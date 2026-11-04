@@ -51,6 +51,8 @@ export function useTurnstile(siteKey: string | undefined) {
   const container = useRef<HTMLDivElement>(null);
   const widgetId = useRef<string | null>(null);
   const token = useRef<string | null>(null);
+  // "failed" (script blocked, network, widget error) makes take() return at once, not stall.
+  const status = useRef<"loading" | "ready" | "failed">("loading");
 
   useEffect(() => {
     if (!siteKey) return;
@@ -61,12 +63,18 @@ export function useTurnstile(siteKey: string | undefined) {
         widgetId.current = window.turnstile.render(container.current, {
           sitekey: siteKey,
           appearance: "interaction-only",
-          callback: (t) => (token.current = t),
+          callback: (t) => {
+            token.current = t;
+            status.current = "ready";
+          },
           "expired-callback": () => (token.current = null),
-          "error-callback": () => (token.current = null),
+          "error-callback": () => {
+            token.current = null;
+            status.current = "failed";
+          },
         });
       })
-      .catch(() => {});
+      .catch(() => (status.current = "failed"));
     return () => {
       cancelled = true;
       if (widgetId.current && window.turnstile) window.turnstile.remove(widgetId.current);
@@ -77,12 +85,20 @@ export function useTurnstile(siteKey: string | undefined) {
   /** A token for one request (tokens are single-use), or undefined if none arrives in time. */
   const take = useCallback(async (): Promise<string | undefined> => {
     if (!siteKey) return undefined;
-    for (let waited = 0; !token.current && waited < 8_000; waited += 200) {
+    // Up to 30 s: an interactive challenge may need the visitor to click.
+    for (
+      let waited = 0;
+      !token.current && status.current !== "failed" && waited < 30_000;
+      waited += 200
+    ) {
       await new Promise((r) => setTimeout(r, 200));
     }
     const t = token.current ?? undefined;
     token.current = null;
-    if (widgetId.current && window.turnstile) window.turnstile.reset(widgetId.current);
+    if (widgetId.current && window.turnstile) {
+      window.turnstile.reset(widgetId.current);
+      status.current = "loading"; // a reset widget gets another chance after an error
+    }
     return t;
   }, [siteKey]);
 

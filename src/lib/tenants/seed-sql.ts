@@ -57,8 +57,8 @@ export function buildTenantSeedSql(cfg: TenantConfig, kbDocs: KbDoc[]): TenantSe
   const out: string[] = [`-- Tenant: ${cfg.slug}`];
 
   out.push(
-    `insert into public.tenants (id, slug, name, industry) values (${lit(tenantId)}, ${lit(cfg.slug)}, ${lit(cfg.name)}, ${lit(cfg.industry)})
-  on conflict (id) do update set name = excluded.name, industry = excluded.industry;`,
+    `insert into public.tenants (id, slug, name, industry, is_demo) values (${lit(tenantId)}, ${lit(cfg.slug)}, ${lit(cfg.name)}, ${lit(cfg.industry)}, ${lit(cfg.demo)})
+  on conflict (id) do update set name = excluded.name, industry = excluded.industry, is_demo = excluded.is_demo;`,
   );
 
   out.push(
@@ -88,12 +88,18 @@ on conflict (tenant_id) do nothing; -- settings changed in the dashboard are nev
     );
   }
 
+  // Demo tenants: orders/payments go into the daily reset (upsert to the scripted state). Real
+  // tenants: inserted once if missing, never overwritten or deleted by a re-seed.
+  const orderSql: string[] = cfg.demo ? reset : out;
+  const keep = (sql: string) =>
+    cfg.demo
+      ? sql
+      : sql.replace(/on conflict \(id\) do update set[\s\S]*;$/, "on conflict (id) do nothing;");
   for (const o of cfg.orders) {
     const orderId = stableUuid("order", cfg.slug, o.order_number);
     const customerId = customerIds.get(o.customer)!;
-    // Demo data is reset to its scripted state on every seed so the sample scenarios keep working.
-    reset.push(
-      `insert into public.orders (id, tenant_id, customer_id, order_number, status, currency, total_cents, items, shipping_address,
+    orderSql.push(
+      keep(`insert into public.orders (id, tenant_id, customer_id, order_number, status, currency, total_cents, items, shipping_address,
   carrier, tracking_number, estimated_delivery, placed_at, shipped_at, delivered_at)
 values (${lit(orderId)}, ${lit(tenantId)}, ${lit(customerId)}, ${lit(o.order_number)}, ${lit(o.status)}, ${lit(o.currency)}, ${lit(o.total_cents)},
   ${lit(o.items)}, ${lit(o.shipping_address ?? {})}, ${lit(o.carrier)}, ${lit(o.tracking_number)}, ${dateIn(o.estimated_delivery_in_days)},
@@ -101,22 +107,23 @@ values (${lit(orderId)}, ${lit(tenantId)}, ${lit(customerId)}, ${lit(o.order_num
 on conflict (id) do update set customer_id = excluded.customer_id, status = excluded.status, currency = excluded.currency,
   total_cents = excluded.total_cents, items = excluded.items, shipping_address = excluded.shipping_address,
   carrier = excluded.carrier, tracking_number = excluded.tracking_number, estimated_delivery = excluded.estimated_delivery,
-  placed_at = excluded.placed_at, shipped_at = excluded.shipped_at, delivered_at = excluded.delivered_at;`,
+  placed_at = excluded.placed_at, shipped_at = excluded.shipped_at, delivered_at = excluded.delivered_at;`),
     );
     const charges = o.duplicate_charge ? 2 : 1;
     const paymentIds: string[] = [];
     for (let i = 0; i < charges; i++) {
       const paymentId = stableUuid("payment", cfg.slug, o.order_number, String(i));
       paymentIds.push(paymentId);
-      reset.push(
-        `insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
+      orderSql.push(
+        keep(`insert into public.payments (id, tenant_id, order_id, customer_id, amount_cents, status, captured_at)
 values (${lit(paymentId)}, ${lit(tenantId)}, ${lit(orderId)}, ${lit(customerId)}, ${lit(o.total_cents)}, 'captured', ${daysAgo(o.placed_days_ago)})
-on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;`,
+on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'captured', captured_at = excluded.captured_at;`),
       );
     }
-    reset.push(
-      `delete from public.payments where tenant_id = ${lit(tenantId)} and order_id = ${lit(orderId)} and id <> all(${uuidArray(paymentIds)});`,
-    );
+    if (cfg.demo)
+      reset.push(
+        `delete from public.payments where tenant_id = ${lit(tenantId)} and order_id = ${lit(orderId)} and id <> all(${uuidArray(paymentIds)});`,
+      );
   }
 
   for (const doc of kbDocs) {
@@ -143,15 +150,23 @@ on conflict (id) do update set amount_cents = excluded.amount_cents, status = 'c
   // (orders cascade to payments; KB documents cascade to chunks).
   const orderIds = cfg.orders.map((o) => stableUuid("order", cfg.slug, o.order_number));
   const docIds = kbDocs.map((d) => stableUuid("kb", cfg.slug, d.slug));
-  reset.push(
-    `delete from public.orders where tenant_id = ${lit(tenantId)} and id <> all(${uuidArray(orderIds)});`,
-  );
-  cleanup.push(
-    `delete from public.customers where tenant_id = ${lit(tenantId)} and id <> all(${uuidArray([...customerIds.values()])});`,
-  );
+  if (cfg.demo)
+    reset.push(
+      `delete from public.orders where tenant_id = ${lit(tenantId)} and id <> all(${uuidArray(orderIds)});`,
+    );
+  if (cfg.demo)
+    cleanup.push(
+      `delete from public.customers where tenant_id = ${lit(tenantId)} and id <> all(${uuidArray([...customerIds.values()])});`,
+    );
   out.push(
     `delete from public.kb_documents where tenant_id = ${lit(tenantId)} and id <> all(${uuidArray(docIds)});`,
   );
 
-  return { setup: out.join("\n\n"), reset: reset.join("\n\n"), cleanup: cleanup.join("\n\n") };
+  // Real clients' orders, payments and refunds are live business records: the seed never resets
+  // them. Demo resets are also guarded in SQL by tenants.is_demo, so a hand-edited seed can't
+  // reach a real tenant either.
+  const resetSql = cfg.demo
+    ? `if exists (select 1 from public.tenants where id = ${lit(tenantId)} and is_demo) then\n${reset.join("\n\n")}\nend if;`
+    : "";
+  return { setup: out.join("\n\n"), reset: resetSql, cleanup: cleanup.join("\n\n") };
 }

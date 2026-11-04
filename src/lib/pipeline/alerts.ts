@@ -1,14 +1,17 @@
 import { maskPII } from "../guardrails/pii.ts";
 import type { PipelineStore } from "./store.ts";
 
-/** Failures of one kind within an hour before the operator is emailed. One failure is noise. */
+/** Failures of one kind within a clock hour before the operator is emailed. One is noise. */
 export const ALERT_THRESHOLD = 3;
 
 export type AlertSend = (subject: string, body: string) => Promise<void>;
 
 /**
- * Counts a failure and emails the operator when the same kind repeats (≥ 3 in an hour), at most
- * once per kind per hour so an outage doesn't flood the inbox. Uses the same atomic counters as
+ * Counts a failure and emails the operator when the same kind repeats (≥ 3 in the same clock
+ * hour — fixed windows, so failures straddling the hour can be missed), at most once per kind
+ * per hour so an outage doesn't flood the inbox. Known limit: alerts go out through Gmail, so a
+ * Gmail outage (e.g. an expired refresh token) can't alert by email; the dashboard still shows
+ * "needs attention" tickets. Uses the same atomic counters as
  * rate limiting, so concurrent serverless instances agree. Never throws: alerting must not turn
  * a handled failure into an unhandled one. Details are PII-masked before they leave the system.
  */

@@ -7,7 +7,7 @@ const TURNSTILE = "https://challenges.cloudflare.com";
  * Content Security Policy. Scripts and frames may only come from this site and Cloudflare
  * Turnstile, and the browser may only talk to this site, so injected markup can't load a remote
  * script or send data elsewhere. 'unsafe-inline' scripts remain because a per-request nonce would
- * make every page dynamic (no static landing page); see docs/DECISIONS.md ADR-020.
+ * make every page dynamic (no static landing page); see docs/DECISIONS.md ADR-021.
  * frame-ancestors/X-Frame-Options stop the dashboard being framed for clickjacking.
  */
 const CSP = [

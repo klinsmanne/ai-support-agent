@@ -97,12 +97,24 @@ export function ChatWidget({ turnstileSiteKey }: { turnstileSiteKey?: string } =
     setBusy(true);
     try {
       // The bot check is only needed to start a session; resumed sessions skip it.
-      const turnstileToken = token.current ? undefined : await turnstile.take();
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tenant, sessionToken: token.current, turnstileToken, ...body }),
-      });
+      const request = async () =>
+        fetch("/api/chat", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            tenant,
+            sessionToken: token.current,
+            turnstileToken: token.current ? undefined : await turnstile.take(),
+            ...body,
+          }),
+        });
+      let res = await request();
+      // A stored session the server no longer has (expired after 7 idle days) needs a fresh bot
+      // check: drop it and start a new session once.
+      if (res.status === 403 && token.current && !stale()) {
+        token.current = undefined;
+        res = await request();
+      }
       const json = await res.json();
       if (stale()) return null;
       if (!res.ok) {

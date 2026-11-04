@@ -71,9 +71,12 @@ export default function Privacy() {
       <section>
         <h2>Retention and deletion</h2>
         <p>
-          Messages are kept for up to 90 days (the client&apos;s retention setting) so the team can
-          review them, then deleted automatically. Personal data is masked in internal logs. To have
-          your messages deleted, email {contact} and we&apos;ll remove them.
+          Once a conversation is finished, its messages and AI traces are deleted automatically
+          after the client&apos;s retention period (90 days by default). Conversations still waiting
+          for a person are kept until someone handles them. Refund records (amount, order, reason
+          category) and an audit log of actions taken (kept up to a year, no message text) remain
+          for accounting and security. Personal data is masked in internal logs. To have your
+          messages deleted sooner, email {contact} and we&apos;ll remove them.
         </p>
       </section>
       <section>
