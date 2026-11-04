@@ -97,19 +97,28 @@ export class GmailClient implements ChannelSender {
     do {
       const q = new URLSearchParams({
         startHistoryId,
-        historyTypes: "messageAdded",
         labelId: "INBOX",
         maxResults: "100",
       });
+      // New mail AND mail moved into the inbox later (e.g. a human clicking "Not spam").
+      q.append("historyTypes", "messageAdded");
+      q.append("historyTypes", "labelAdded");
       if (pageToken) q.set("pageToken", pageToken);
       const page = await this.call<{
-        history?: { messagesAdded?: { message: { id: string; labelIds?: string[] } }[] }[];
+        history?: {
+          messagesAdded?: { message: { id: string; labelIds?: string[] } }[];
+          labelsAdded?: { message: { id: string; labelIds?: string[] }; labelIds: string[] }[];
+        }[];
         historyId: string;
         nextPageToken?: string;
       }>(`/history?${q}`);
       for (const h of page.history ?? []) {
         for (const added of h.messagesAdded ?? []) {
           if (!added.message.labelIds?.includes("SENT")) ids.add(added.message.id);
+        }
+        for (const moved of h.labelsAdded ?? []) {
+          if (moved.labelIds.includes("INBOX") && !moved.message.labelIds?.includes("SENT"))
+            ids.add(moved.message.id);
         }
       }
       latest = page.historyId ?? latest;
@@ -139,6 +148,14 @@ export class GmailClient implements ChannelSender {
       body: JSON.stringify({ raw: toBase64Url(raw), threadId: reply.threadKey }),
     });
     return { providerMessageId: sent.id };
+  }
+
+  /** Moves a message out of Spam into the inbox (operator action for false-positive spam). */
+  async markNotSpam(messageId: string): Promise<void> {
+    await this.call(`/messages/${encodeURIComponent(messageId)}/modify`, {
+      method: "POST",
+      body: JSON.stringify({ removeLabelIds: ["SPAM"], addLabelIds: ["INBOX"] }),
+    });
   }
 
   /** Marks a message processed in the mailbox so humans see what the agent handled. */

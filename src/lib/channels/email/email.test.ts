@@ -179,3 +179,49 @@ describe("composeReplyMime", () => {
     ).toThrow(/header injection/);
   });
 });
+
+describe("GmailClient.newMessageIdsSince", () => {
+  it("picks up new mail and mail moved into the inbox (e.g. 'Not spam'), never our sent mail", async () => {
+    const { GmailClient } = await import("./gmail-client");
+    const fakeFetch = (async (url: string) => {
+      if (String(url).includes("oauth2"))
+        return new Response(JSON.stringify({ access_token: "t", expires_in: 3600 }));
+      expect(String(url)).toContain("historyTypes=messageAdded");
+      expect(String(url)).toContain("historyTypes=labelAdded");
+      return new Response(
+        JSON.stringify({
+          historyId: "200",
+          history: [
+            {
+              messagesAdded: [
+                { message: { id: "new", labelIds: ["INBOX"] } },
+                { message: { id: "ours", labelIds: ["SENT"] } },
+              ],
+            },
+            {
+              labelsAdded: [
+                { message: { id: "unspammed", labelIds: ["INBOX"] }, labelIds: ["INBOX"] },
+              ],
+            },
+            {
+              labelsAdded: [
+                {
+                  message: { id: "starred", labelIds: ["INBOX", "STARRED"] },
+                  labelIds: ["STARRED"],
+                },
+              ],
+            },
+          ],
+        }),
+      );
+    }) as typeof fetch;
+    const client = new GmailClient(
+      { clientId: "c", clientSecret: "s", refreshToken: "r", address: INBOX, displayName: "S" },
+      fakeFetch,
+    );
+    expect(await client.newMessageIdsSince("100")).toEqual({
+      ids: ["new", "unspammed"],
+      historyId: "200",
+    });
+  });
+});
