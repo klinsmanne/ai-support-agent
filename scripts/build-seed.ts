@@ -71,7 +71,8 @@ begin
 ${resetBody}
 end;
 $reset$;`,
-  "revoke all on function public.reset_demo_data() from public, anon, authenticated;",
+  // Supabase default privileges grant new functions to every API role, service_role included.
+  "revoke all on function public.reset_demo_data() from public, anon, authenticated, service_role;",
   "select public.reset_demo_data();",
   ...cleanups,
 );

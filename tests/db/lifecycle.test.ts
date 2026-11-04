@@ -71,6 +71,13 @@ describe("purge_expired_data (retention)", () => {
     for (const fn of ["purge_expired_data", "reset_demo_data"]) {
       await expect(asUser(db, USER, `select public.${fn}()`)).rejects.toThrow(/permission denied/);
     }
+    // Not even the server's secret-key role: only pg_cron (postgres) runs these.
+    for (const fn of ["purge_expired_data", "reset_demo_data"]) {
+      await expect(
+        db.exec(`begin; set local role service_role; select public.${fn}(); commit;`),
+      ).rejects.toThrow(/permission denied/);
+      await db.exec("rollback");
+    }
     await expect(asUser(db, null, "select public.purge_expired_data()")).rejects.toThrow(
       /permission denied/,
     );

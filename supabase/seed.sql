@@ -606,7 +606,7 @@ end if;
 end;
 $reset$;
 
-revoke all on function public.reset_demo_data() from public, anon, authenticated;
+revoke all on function public.reset_demo_data() from public, anon, authenticated, service_role;
 
 select public.reset_demo_data();
 

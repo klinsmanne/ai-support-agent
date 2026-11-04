@@ -19,7 +19,7 @@ _Last updated: 2026-11-04_
 
 ## In progress (resume here)
 
-- **Milestone H — Hardening (PR #13):** data lifecycle (retention purge, daily demo reset, rate-limit pruning via pg_cron; ADR-019), email content only to no-training providers (ADR-020), Turnstile on chat (fails closed in production) + stricter CSP (ADR-021), repeated-failure email alerts, `docs/THREAT_MODEL.md` (STRIDE + OWASP LLM Top 10). Pending: apply migration 9 + seed live (needs owner OK — enables automatic deletion), real Cloudflare Turnstile keys (currently Cloudflare's test keys locally), reviews, merge.
+- **Milestone H — Hardening (PR #13):** data lifecycle (retention purge of finished tickets, daily demo reset for `"demo": true` tenants only, rate-limit pruning — pg_cron jobs live and verified; functions callable only by pg_cron; ADR-019), email content only to no-training providers (ADR-020), Turnstile on chat (fails closed in production) + stricter CSP (ADR-021), repeated-failure email alerts to the owner, `docs/THREAT_MODEL.md` (STRIDE + OWASP LLM Top 10). Reviews done and fixed. 250 tests. → merge after CI. **Carry to J:** create the real Cloudflare Turnstile widget once the production domain exists (local env uses Cloudflare's public test keys); second alert channel.
 - Then **Milestone I — Evals + model comparison.**
 
 ## Previously in progress
