@@ -33,6 +33,23 @@ const LABELS: Record<string, string> = {
 };
 export const reasonLabel = (code: string) => LABELS[code] ?? code.replace(/_/g, " ");
 
+/**
+ * The summary is written by the model and can echo what a customer wrote, so before it goes into
+ * a team email: links are removed (an attacker could plant a phishing URL), PII is masked, and a
+ * suspected manipulation attempt gets a fixed summary instead of anything derived from it.
+ */
+export function safeSummary(summary: string, reasons: string[], max = 400): string {
+  if (reasons.includes("suspected_prompt_injection"))
+    return "Message flagged as a possible manipulation attempt. Open the ticket to review it.";
+  return maskPII(summary)
+    .replace(/\b(?:https?:\/\/|www\.)\S+/gi, "[link removed]")
+    .replace(
+      /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|co|app|xyz|info|biz|ru|cn|ly|me)\b\S*/gi,
+      "[link removed]",
+    )
+    .slice(0, max);
+}
+
 /** At most this many instant emails per client per hour, so an attack can't flood the team. */
 export const URGENT_PER_HOUR = 20;
 
@@ -63,7 +80,7 @@ export async function notifyUrgentEscalation(
       [
         `A ticket was escalated to your team (${what}).`,
         "",
-        `Summary: ${maskPII(opts.summary).slice(0, 400)}`,
+        `Summary: ${safeSummary(opts.summary, urgent)}`,
         "",
         opts.ticketUrl
           ? `Review it and approve, edit or reject the drafted reply: ${opts.ticketUrl}`
@@ -101,7 +118,7 @@ export function buildDigest(
       0,
       Math.round((now.getTime() - new Date(p.createdAt).getTime()) / 3_600_000),
     );
-    return `• ${p.reasons.map(reasonLabel).join(", ")} · waiting ${hours} h\n  ${maskPII(p.summary).slice(0, 160)}\n  ${ticketUrl(p.ticketId)}`;
+    return `• ${p.reasons.map(reasonLabel).join(", ")} · waiting ${hours} h\n  ${safeSummary(p.summary, p.reasons, 160)}\n  ${ticketUrl(p.ticketId)}`;
   });
   return {
     subject: `[${brand}] ${pending.length} escalation${pending.length === 1 ? "" : "s"} waiting (oldest ${Math.round(oldest)} h)`,

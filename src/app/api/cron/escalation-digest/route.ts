@@ -9,7 +9,9 @@ export async function POST(request: Request) {
   if (!isAuthorizedCron(request)) return Response.json({ error: "unauthorized" }, { status: 401 });
   const c = getContainer();
   if (!c.gmail) return Response.json({ error: "gmail not configured" }, { status: 503 });
-  const appUrl = c.env.APP_URL ?? "";
+  const appUrl = c.env.APP_URL;
+  // Without the public URL every link in the digest would be broken.
+  if (!appUrl) return Response.json({ error: "APP_URL not configured" }, { status: 503 });
 
   const { data: tenants, error } = await c.db
     .from("tenant_settings")
@@ -38,8 +40,11 @@ export async function POST(request: Request) {
     try {
       await c.gmail.sendNew(t.escalation_notify_email, digest.subject, digest.body);
       sent.push(t.brand_name);
-    } catch {
-      // One client's failure doesn't stop the others; the poll's alerting covers Gmail outages.
+    } catch (error) {
+      // One client's failure doesn't stop the others. Logged without the address (it's private).
+      console.warn(
+        `escalation digest failed for tenant ${String(t.tenant_id).slice(0, 8)}…: ${(error as Error).message.slice(0, 120)}`,
+      );
     }
   }
   return Response.json({ digests: sent.length });

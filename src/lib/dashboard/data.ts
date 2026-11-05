@@ -146,10 +146,14 @@ export async function getMetrics(
   return data as Metrics;
 }
 
+/** Columns signed-in users may read (migration 14 keeps the team notification address server-only). */
+const SETTINGS_COLUMNS =
+  "tenant_id, rollout_mode, kill_switch, refund_auto_approve_limit_cents, max_refunds_per_customer_30d, escalate_on_negative_sentiment_below, min_confidence_to_act, enabled_tools, brand_name, brand_voice, supported_languages, allowed_link_domains, support_email, csat_enabled, daily_ticket_cap, max_ai_replies_per_thread, retention_days, updated_at, escalation_digest";
+
 export async function getSettings(db: SupabaseClient, tenantId: string) {
   const { data } = await db
     .from("tenant_settings")
-    .select("*")
+    .select(SETTINGS_COLUMNS)
     .eq("tenant_id", tenantId)
     .maybeSingle();
   return data;

@@ -56,7 +56,7 @@ Then choose:
 In **Settings → Notifications**, enter your team's email address:
 
 - **Right away:** urgent escalations arrive by email. That covers a customer asking for a person, a very upset customer, legal or safety issues, refunds above the limit, and manipulation attempts.
-- **Every morning (8 am US Central):** a digest lists everything still waiting, oldest first.
+- **Every morning (13:00 UTC, which is 7 am US Central in winter and 8 am in summer):** a digest lists everything still waiting, oldest first.
 
 Each email has the reason, a short summary and a link straight to the ticket, never the customer's message itself. Leave the address empty to turn notifications off.
 

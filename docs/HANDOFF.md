@@ -33,7 +33,7 @@ _For the client's support lead, engineering lead and operations owner. Fictional
 
 ## 3. Daily and weekly operations
 
-**Daily (5 minutes, support lead).** Urgent escalations email the team as they happen, and a digest of everything waiting arrives at 8 am US Central (Settings → Notifications, ADR-027).
+**Daily (5 minutes, support lead).** Urgent escalations email the team as they happen, and a digest of everything waiting arrives at 13:00 UTC (7–8 am US Central) (Settings → Notifications, ADR-027).
 
 - Dashboard → Escalations: approve, edit or reject drafts. Approving a refund draft runs the refund first, then sends the reply.
 - Glance at the Overview: escalation rate and "needs attention" count.

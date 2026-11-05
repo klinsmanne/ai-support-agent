@@ -172,6 +172,9 @@ Architecture decision records (ADRs) — short, with context and trade-offs. New
 - **Context (found while using the demo):** "routed to a human" meant the ticket waited in the dashboard's Escalations queue, and nobody was told. A support lead who isn't watching the dashboard could miss a customer asking for a person, or a legal threat.
 - **Decision:** each client sets a team address in Settings → Notifications.
   - **Instant email** for urgent reasons: a customer asks for a person, is very upset, mentions legal or safety, a refund is above the limit, or a suspected manipulation attempt. Capped at 20 an hour per client.
-  - **Daily digest** at 13:00 UTC (8 am US Central) of everything still pending, oldest first. pg_cron calls `/api/cron/escalation-digest` with the same `CRON_SECRET` as the inbox poll; the URL is derived from the poll URL in Vault, so there's no new secret.
-- **Privacy:** notifications carry the reason, a PII-masked summary and a dashboard link, never the customer's message text. The team address is shown only to owners; the public demo viewer sees only "on" or "off".
+  - **Daily digest** at 13:00 UTC (7–8 am US Central) of everything still pending, oldest first. pg_cron calls `/api/cron/escalation-digest` with the same `CRON_SECRET` as the inbox poll; the URL is derived from the poll URL in Vault, so there's no new secret.
+- **Privacy and safety:**
+  - Notifications carry the reason, the agent's summary with PII masked and **links removed**, and a dashboard link, never the customer's message text.
+  - A suspected manipulation attempt gets a fixed summary, so attacker-written text can't reach the team's inbox through the alert.
+  - The team address is readable only by the server: signed-in users, including the public demo account, have no column access in the database. Only owners see it in the dashboard; viewers see "on" or "off".
 - **Failure isolation:** a notification failure never affects the ticket. The system-failure alerts (ADR-026) still cover a Gmail outage.

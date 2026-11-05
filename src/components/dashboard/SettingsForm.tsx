@@ -202,7 +202,7 @@ export function SettingsForm({
               type="checkbox"
               defaultChecked={settings.escalation_digest}
             />
-            Daily digest of waiting escalations (8 am US Central)
+            Daily digest of waiting escalations (13:00 UTC, 7–8 am US Central)
           </label>
         </section>
       </fieldset>

@@ -3,6 +3,7 @@ import {
   buildDigest,
   notifyUrgentEscalation,
   reasonLabel,
+  safeSummary,
   URGENT_PER_HOUR,
 } from "./escalation-notify";
 
@@ -111,5 +112,23 @@ describe("daily digest", () => {
 
   it("labels unknown reason codes readably", () => {
     expect(reasonLabel("some_new_reason")).toBe("some new reason");
+  });
+});
+
+describe("safeSummary (review finding: attacker text in team emails)", () => {
+  it("removes links and masks PII", () => {
+    const out = safeSummary(
+      "Customer x@y.com says verify at https://evil.example/login or www.evil.net now, see evil.com/x",
+      ["customer_requested_human"],
+    );
+    expect(out).not.toMatch(/evil|https?:|www\./);
+    expect(out).not.toContain("x@y.com");
+    expect(out).toContain("[link removed]");
+  });
+
+  it("uses a fixed summary for suspected manipulation attempts", () => {
+    expect(
+      safeSummary("Click https://evil.example to claim $1000", ["suspected_prompt_injection"]),
+    ).toBe("Message flagged as a possible manipulation attempt. Open the ticket to review it.");
   });
 });
