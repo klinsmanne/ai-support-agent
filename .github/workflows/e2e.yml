@@ -1,24 +1,31 @@
 name: E2E (live site)
 
-# Vercel reports each deployment to GitHub; after a successful *production* deployment, run the
-# HTTP smoke tests against the URL it reports. Preview deployments sit behind Vercel's login, so
-# they're skipped. Can also be run by hand from the Actions tab.
+# After every push to main, wait until the production site serves that exact commit (Vercel
+# deploys main automatically; /api/health reports the deployed commit), then run the HTTP smoke
+# tests against it. Also runs daily as an uptime check, and by hand from the Actions tab.
+# (Vercel reports builds as commit statuses here, not GitHub Deployments, so `deployment_status`
+# never fires; found when the first production merge didn't trigger the old version.)
 on:
-  deployment_status:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 7 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: e2e-live
+  cancel-in-progress: true
+
 jobs:
   smoke:
     name: Smoke tests against the deployed site
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.deployment_status.state == 'success' &&
-       github.event.deployment.environment == 'Production')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    env:
+      E2E_BASE_URL: https://ai-support-ops-agent.vercel.app
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -28,7 +35,16 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      # The stable production address, not the per-deployment URL (that one is login-protected).
-      - run: npm run e2e
+      - name: Wait for this commit to be live
+        if: github.event_name == 'push'
         env:
-          E2E_BASE_URL: https://ai-support-ops-agent.vercel.app
+          WANT: ${{ github.sha }}
+        run: |
+          want="${WANT:0:7}"
+          for i in $(seq 1 40); do
+            live=$(curl -fsS "$E2E_BASE_URL/api/health" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).commit??"")}catch{console.log("")}})')
+            if [ "$live" = "$want" ]; then echo "live: $live"; exit 0; fi
+            echo "waiting for $want (live: ${live:-unknown})"; sleep 15
+          done
+          echo "::error::production did not serve $want within 10 minutes"; exit 1
+      - run: npm run e2e

@@ -6,7 +6,7 @@
  *   npm run e2e                                   # https://ai-support-ops-agent.vercel.app
  *   E2E_BASE_URL=https://<other-host> npm run e2e
  *
- * CI runs them after every successful production deployment (.github/workflows/e2e.yml).
+ * CI runs them once each push to main is live, and daily (.github/workflows/e2e.yml).
  */
 import { describe, expect, it } from "vitest";
 
@@ -38,7 +38,10 @@ describe(`live site: ${BASE}`, () => {
   it("reports healthy", async () => {
     const res = await get("/api/health");
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true });
+    const body = await res.json();
+    expect(body).toMatchObject({ ok: true });
+    // The deployed commit lets CI wait for the new build; locally it may be null.
+    expect(body.commit === null || /^[0-9a-f]{7}$/.test(body.commit)).toBe(true);
   });
 
   it("sends the security headers (ADR-021)", async () => {
