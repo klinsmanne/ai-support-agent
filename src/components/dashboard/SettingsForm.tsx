@@ -12,6 +12,10 @@ type Settings = {
   min_confidence_to_act: number;
   daily_ticket_cap: number;
   max_ai_replies_per_thread: number;
+  /** Only set for owners; viewers get null and see escalation_notify_configured instead. */
+  escalation_notify_email: string | null;
+  escalation_notify_configured: boolean;
+  escalation_digest: boolean;
 };
 
 const MODES = [
@@ -163,6 +167,42 @@ export function SettingsForm({
               defaultValue={settings.max_ai_replies_per_thread}
               className={field}
             />
+          </label>
+        </section>
+        <section className="space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+          <h2 className="font-semibold">Notifications</h2>
+          <p className="text-xs text-zinc-500">
+            Escalations wait in the Escalations queue. Name a team address to get an email right
+            away for urgent ones (a customer asks for a person, is very upset, mentions legal or
+            safety, a refund is above the limit, or a manipulation attempt), and a daily digest of
+            everything still waiting. Emails contain the reason, a summary and a link, never the
+            customer&apos;s message.
+          </p>
+          {isOwner ? (
+            <label className="block text-sm">
+              Team email for escalations (leave empty to turn off)
+              <input
+                name="escalation_notify_email"
+                type="email"
+                placeholder="support-team@client.com"
+                defaultValue={settings.escalation_notify_email ?? ""}
+                className={field}
+              />
+            </label>
+          ) : (
+            <p className="text-sm">
+              Team notifications:{" "}
+              <strong>{settings.escalation_notify_configured ? "on" : "off"}</strong> (address
+              visible to owners only)
+            </p>
+          )}
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              name="escalation_digest"
+              type="checkbox"
+              defaultChecked={settings.escalation_digest}
+            />
+            Daily digest of waiting escalations (8 am US Central)
           </label>
         </section>
       </fieldset>

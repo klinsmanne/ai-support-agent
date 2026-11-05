@@ -79,13 +79,14 @@ describe(`live site: ${BASE}`, () => {
     expect(JSON.stringify(await res.json())).not.toMatch(/return policy/i);
   });
 
-  it("rejects Gmail poll calls without the cron secret", async () => {
-    for (const authorization of [undefined, "Bearer wrong-secret-wrong-secret-wrong-secret"]) {
-      const res = await get("/api/channels/gmail/poll", {
-        method: "POST",
-        headers: authorization ? { authorization } : {},
-      });
-      expect(res.status).toBe(401);
-    }
+  it("rejects Gmail poll and escalation-digest calls without the cron secret", async () => {
+    for (const path of ["/api/channels/gmail/poll", "/api/cron/escalation-digest"])
+      for (const authorization of [undefined, "Bearer wrong-secret-wrong-secret-wrong-secret"]) {
+        const res = await get(path, {
+          method: "POST",
+          headers: authorization ? { authorization } : {},
+        });
+        expect(res.status).toBe(401);
+      }
   });
 });

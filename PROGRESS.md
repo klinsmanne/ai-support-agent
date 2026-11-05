@@ -50,4 +50,4 @@ Paste this into a new Claude Code session opened in this folder:
 
 ## Decisions
 
-See `docs/DECISIONS.md` (ADR-001 … ADR-026).
+See `docs/DECISIONS.md` (ADR-001 … ADR-027).

@@ -31,7 +31,17 @@ async function SettingsContent({ searchParams }: { searchParams: Params }) {
         Brand voice: “{settings.brand_voice}” · Languages: {settings.supported_languages.join(", ")}{" "}
         · Tools: {settings.enabled_tools.join(", ")}
       </p>
-      <SettingsForm tenantId={ctx.tenant.tenantId} settings={settings} isOwner={ctx.isOwner} />
+      <SettingsForm
+        tenantId={ctx.tenant.tenantId}
+        // The team's notification address goes only to owners' browsers, never to viewers
+        // (the public demo account can open this page).
+        settings={{
+          ...settings,
+          escalation_notify_email: ctx.isOwner ? settings.escalation_notify_email : null,
+          escalation_notify_configured: !!settings.escalation_notify_email,
+        }}
+        isOwner={ctx.isOwner}
+      />
     </div>
   );
 }

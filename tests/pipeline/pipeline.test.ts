@@ -279,6 +279,55 @@ describe("email pipeline", () => {
     expect(store.tickets[0].status).toBe("escalated");
   });
 
+  it("urgent escalations notify the client's team; non-urgent ones wait for the digest (ADR-027)", async () => {
+    const notes: { to: string; subject: string; body: string }[] = [];
+    const withTeam = (r: ReturnType<typeof router>): PipelineDeps => {
+      const d = deps(r);
+      const settings = store.settings.bind(store);
+      store.settings = async (id) => ({
+        ...(await settings(id)),
+        escalation_notify_email: "team@harborandpine.example",
+      });
+      return {
+        ...d,
+        notifyTeam: async (to, subject, body) => void notes.push({ to, subject, body }),
+        ticketUrl: (id) => `https://app.example/dashboard/tickets/${id}`,
+      };
+    };
+    const human = router(
+      [
+        [
+          call("escalate_to_human", {
+            reason: "customer_requested_human",
+            summary: "Wants a person.",
+            suggested_reply: "On it.",
+          }),
+        ],
+      ],
+      { wants_human: true },
+    );
+    await ingestMessage(email({ text: "Let me talk to a human" }), withTeam(human));
+    expect(notes).toHaveLength(1);
+    expect(notes[0].to).toBe("team@harborandpine.example");
+    expect(notes[0].subject).toMatch(/Needs a person: customer asked for a person/);
+    expect(notes[0].body).toContain(`https://app.example/dashboard/tickets/${store.tickets[0].id}`);
+
+    const unsure = router([
+      [
+        call("escalate_to_human", {
+          reason: "low_confidence",
+          summary: "Not sure.",
+          suggested_reply: "Checking.",
+        }),
+      ],
+    ]);
+    await ingestMessage(
+      email({ threadKey: "thread-2", text: "Do you gift wrap?" }),
+      withTeam(unsure),
+    );
+    expect(notes).toHaveLength(1); // low confidence → daily digest only
+  });
+
   it("kill switch: nothing is sent, ticket goes to humans", async () => {
     repo.setKillSwitch(HP, true);
     const r = router([[call("send_reply", { message: "x" })]]);

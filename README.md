@@ -57,7 +57,7 @@ flowchart LR
    - always an AI disclosure and a way to reach a human.
 5. **Humans.** Rollout runs shadow → draft-only → auto-send per client. The dashboard has an approval queue, a kill switch and a full trace of every decision.
 
-Details: [solution design](docs/SOLUTION_DESIGN.md) · [decisions (ADR-001…026)](docs/DECISIONS.md) · [threat model](docs/THREAT_MODEL.md)
+Details: [solution design](docs/SOLUTION_DESIGN.md) · [decisions (ADR-001…027)](docs/DECISIONS.md) · [threat model](docs/THREAT_MODEL.md)
 
 ## Resolve or escalate?
 

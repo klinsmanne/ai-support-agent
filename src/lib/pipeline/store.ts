@@ -18,7 +18,14 @@ export type MessageStatus =
 
 export interface PipelineStore {
   tenantIdBySlug(slug: string): Promise<string | null>;
-  settings(tenantId: string): Promise<TenantSettings & { kill_switch: boolean }>;
+  settings(tenantId: string): Promise<
+    TenantSettings & {
+      kill_switch: boolean;
+      /** Team address for escalation notifications (ADR-027); null = off. */
+      escalation_notify_email?: string | null;
+      escalation_digest?: boolean;
+    }
+  >;
   /**
    * Idempotency: true only for the first caller with this provider message id. Never true again,
    * even after a failure — a re-run could send a second reply; failures go to a human instead.
