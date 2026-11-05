@@ -16,14 +16,14 @@ Built as a forward-deployed engagement for a fictional client, from discovery to
 
 ## Results
 
-| What                       | Result                                                                                                                                                               |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Eval suite (47 cases)      | **98%** pass on Gemini 3.5 Flash-Lite and **96%** on Groq gpt-oss-20b, with **0 safety failures** for both ([evals/REPORT.md](evals/REPORT.md))                      |
-| Live email round trip      | Real email answered **6.7 s** after it was fetched (polled every 2 min)                                                                                              |
-| Cost per AI-handled ticket | **$0.0005–$0.0026** at paid list prices, against a $7.80 human baseline                                                                                              |
-| Unauthorized refunds       | **0**: limits, ownership and one-action-per-ticket are checked in code and in an atomic database function                                                            |
-| Safety found by evals      | The evals caught a model claiming actions it never took ("I've opened a trace"); a guardrail now blocks such replies, and it flags none of 212 stored honest replies |
-| Tests                      | 285 unit, integration and database tests, 8 live smoke tests after every deploy, and an eval gate in CI                                                              |
+| What                       | Result                                                                                                                                                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Eval suite (47 cases)      | **98%** pass on Gemini 3.5 Flash-Lite and **96%** on Groq gpt-oss-20b, with **0 safety failures** for both ([evals/REPORT.md](evals/REPORT.md))                                                                    |
+| Live email round trip      | Real email answered **6.7 s** after it was fetched (polled every 2 min)                                                                                                                                            |
+| Cost per AI-handled ticket | **$0.0005–$0.0026** at paid list prices, against a $7.80 human baseline                                                                                                                                            |
+| Unauthorized refunds       | **0**: limits, ownership and one-action-per-ticket are checked in code and in an atomic database function                                                                                                          |
+| Safety found by evals      | The evals caught a model claiming actions it never took ("I've opened a trace"); a guardrail now blocks such replies, and on all 209 stored replies it flagged only the real false claims, none of the honest ones |
+| Tests                      | 289 unit, integration and database tests, 8 live smoke tests after every deploy, and an eval gate in CI                                                                                                            |
 
 The client's goals from [discovery](docs/DISCOVERY.md) are 50%+ of tickets auto-resolved, first response under 2 minutes, under $3.50 per ticket, and zero unauthorized refunds. The [case study](docs/CASE_STUDY.md) shows how the design meets each one, and which numbers are measured versus projected.
 
@@ -53,7 +53,7 @@ flowchart LR
    - always an AI disclosure and a way to reach a human.
 5. **Humans.** Rollout runs shadow → draft-only → auto-send per client. The dashboard has an approval queue, a kill switch and a full trace of every decision.
 
-Details: [solution design](docs/SOLUTION_DESIGN.md) · [decisions (ADR-001…024)](docs/DECISIONS.md) · [threat model](docs/THREAT_MODEL.md)
+Details: [solution design](docs/SOLUTION_DESIGN.md) · [decisions (ADR-001…025)](docs/DECISIONS.md) · [threat model](docs/THREAT_MODEL.md)
 
 ## Resolve or escalate?
 
@@ -65,11 +65,10 @@ The agent resolves only when **all** of these hold. Otherwise a person gets the 
 | Customer asks for a human, is very upset, or mentions legal or safety                   | Classification + code triggers                    |
 | Confidence below the client's threshold on a policy question with no help-center source | Orchestrator                                      |
 | Suspected prompt injection (write tools are also removed)                               | Injection detector                                |
-| Sender not verified (email DMARC, or chat order number + email)                         | Channel adapter + tools                           |
 | The reply fails a safety check twice                                                    | Output guardrails                                 |
 | Model errors, timeouts or quota exhaustion on every provider                            | Router (fails to a human, never drops the ticket) |
 
-Spam, newsletters and auto-replies are closed without a reply.
+Spam, newsletters and auto-replies are closed without a reply. An **unverified sender** (email without DMARC alignment, or chat before order number + email) gets general answers only: account tools refuse them, and the reply explains how to verify.
 
 ## Model comparison
 

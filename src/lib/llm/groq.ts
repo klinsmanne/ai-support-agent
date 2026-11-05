@@ -73,7 +73,7 @@ export class GroqProvider implements LLMProvider {
         res.status === 429
           ? classify429(message)
           : res.status === 400 && isToolUseFailed(json, message)
-            ? "unavailable"
+            ? "generation_failed"
             : errorKindFromStatus(res.status);
       throw new LLMError(kind, message, this.id, this.model, res.status);
     }

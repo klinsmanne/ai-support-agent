@@ -11,7 +11,7 @@ _For the client's support lead, engineering lead and operations owner. Fictional
 | Second client already configured   | Cadence Analytics, proving a new client is configuration only ([ONBOARDING_RUNBOOK.md](ONBOARDING_RUNBOOK.md))         |
 | Quality gate                       | 47-case eval suite, report, and a CI gate that blocks unsafe or untested prompt changes ([evals/](../evals/README.md)) |
 | Security review                    | [THREAT_MODEL.md](THREAT_MODEL.md) (STRIDE + OWASP LLM Top 10, abuse cases, residual risks)                            |
-| Operations docs                    | [DEPLOYMENT.md](DEPLOYMENT.md) (runbook, rollback, checks), [DECISIONS.md](DECISIONS.md) (24 ADRs)                     |
+| Operations docs                    | [DEPLOYMENT.md](DEPLOYMENT.md) (runbook, rollback, checks), [DECISIONS.md](DECISIONS.md) (25 ADRs)                     |
 
 ## 2. How it behaves (what to tell your team)
 
@@ -64,7 +64,7 @@ Failure alerts go to the owner's email (ALERT_EMAIL) on the 3rd failure of a kin
 
 ## 5. Access, secrets and rotation
 
-- **Dashboard access:** invite-only magic links (`npm run dashboard:users`). There are no passwords to leak. The public demo viewer sees fictional data only (RLS, ADR-018).
+- **Dashboard access:** invite-only magic links (`npm run dashboard:users`). There are no passwords to leak. The public demo viewer sees fictional data on demo tenants only (RLS; ADR-018, ADR-025).
 - **Secrets:** the macOS Keychain is the source of truth. They're copied to Vercel (`secrets push-vercel`) and Supabase Vault (`secrets push-supabase-vault`), and never committed or printed. Rotate one by setting it again in the Keychain (`npm run secrets set NAME`), pushing, and redeploying. Rotate `CRON_SECRET` in both Vercel and Vault together.
 - **Who owns what:** Vercel, Supabase, Google Cloud (Gmail OAuth app), Groq, Gemini API and Cloudflare (Turnstile) accounts. Transfer each to the client's own accounts before going beyond the pilot (section 7).
 

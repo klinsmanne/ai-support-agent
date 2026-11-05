@@ -44,7 +44,7 @@ describe("Groq adapter retries (eval finding)", () => {
       vi.fn().mockImplementation(async () => toolUseFailed()),
     );
     const err = await new GroqProvider("m", "k").generate(req).catch((e) => e);
-    expect(err.kind).toBe("unavailable");
+    expect(err.kind).toBe("generation_failed");
     expect(err.retryable).toBe(true);
   });
 

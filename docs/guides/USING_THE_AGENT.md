@@ -6,10 +6,10 @@ Everything you do day to day happens in the dashboard. No terminal needed, excep
 
 - **You (the owner):** go to https://ai-support-ops-agent.vercel.app/login, type your email and press **Email me a sign-in link**. Open the email and click the link. There's no password.
 - **Anyone else, read-only:** **View demo dashboard (read-only)** on the same page opens the demo with fictional data, with no sign-up.
-- **Your client's team:** invite them to _their_ company only (ask Claude Code to run `npm run dashboard:users -- name@client.com --tenant client-slug --role agent`). Roles:
+- **Your client's team:** invite them to _their_ company only (ask Claude Code to run `npm run dashboard:users -- name@client.com --tenant client-slug --role agent`). Roles for a client's team:
   - `owner` can change settings;
   - `agent` can approve replies;
-  - `viewer` can only look.
+  - (`viewer` is only for the public read-only demo.)
 
 At the top, the tabs (Harbor & Pine, Cadence Analytics) switch between companies. You only see companies you're a member of.
 
@@ -49,7 +49,7 @@ Statuses: `new` → `in progress` → `awaiting customer` → `resolved` / `esca
 Then choose:
 
 - **Approve & send.** It sends the reply (edited or not). If the draft includes a refund or address change, that runs **first**, then the reply goes out.
-- **Reject (I'll handle it).** Nothing is sent, and you reply to the customer yourself.
+- **Reject — I'll handle it.** Nothing is sent, and you reply to the customer yourself.
 
 ## Settings: how much the AI may do
 

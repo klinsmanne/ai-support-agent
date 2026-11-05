@@ -150,4 +150,8 @@ Architecture decision records (ADRs) — short, with context and trade-offs. New
 
 - **Context (found while writing the onboarding runbook):** `npm run dashboard:users` gave the public demo viewer the viewer role on **every** tenant, and gave any invited person owner on every tenant. With only fictional demo tenants nothing was exposed. But onboarding a real client this way would have shown that client's tickets to anyone clicking "View demo dashboard", and given the client's team access to other clients.
 - **Decision:** the demo viewer is granted only on tenants with `is_demo = true`, and is removed from any tenant that isn't a demo. Inviting without `--tenant` makes the operator an owner everywhere; `--tenant <slug> --role owner|agent|viewer` invites a client's team to that client only. RLS (ADR-009, ADR-018) still enforces visibility row by row; this keeps memberships correct in the first place.
+- **Hardened after the security review:**
+  - The database now enforces it too (migration 13): the viewer role only sees tickets on demo tenants, so a stray membership on a real tenant shows nothing.
+  - Invites fail closed: unknown or malformed arguments are rejected, and access to every tenant needs an explicit `--all-tenants`.
+  - Client teams get `owner` or `agent`; `viewer` is reserved for the public demo.
 - **Lesson:** writing the runbook step "invite the client's team" was what surfaced it. Documentation is a review.

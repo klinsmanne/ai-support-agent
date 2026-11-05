@@ -2,33 +2,24 @@
  * Provisions dashboard access (idempotent):
  *  - the public read-only demo viewer (no usable password; signs in via a one-time server token),
  *    viewer role on **demo tenants only**: a real client's tenant is never visible to the public demo;
- *  - an invited person (signs in with a magic link). Without --tenant: owner on every tenant (the
- *    operator running the deployment). With --tenant: that one client only, with --role.
+ *  - an invited person (signs in with a magic link): --all-tenants makes the operator owner on
+ *    every tenant; --tenant scopes a client's team to that client only, with --role owner|agent.
  *
  * Usage:
- *   npm run dashboard:users                                   # demo viewer only
- *   npm run dashboard:users -- you@example.com                # operator: owner on all tenants
- *   npm run dashboard:users -- lead@client.com --tenant client-slug --role agent   # client team
+ *   npm run dashboard:users                                              # demo viewer only
+ *   npm run dashboard:users -- you@example.com --all-tenants             # operator: owner everywhere
+ *   npm run dashboard:users -- lead@client.com --tenant client-slug --role owner   # client team
+ * Unknown or malformed arguments are rejected (fail closed).
  */
 import "./load-env.ts";
 import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { createServiceClient } from "../src/lib/db/client.ts";
+import { parseInviteArgs } from "./dashboard-users-args.ts";
 
 const env = process.env as Record<string, string>;
 const db = createServiceClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY);
-const args = process.argv.slice(2);
-const flag = (name: string) => {
-  const i = args.indexOf(`--${name}`);
-  return i >= 0 ? args[i + 1] : undefined;
-};
-const ownerEmail = args.find((a) => !a.startsWith("--") && a.includes("@"))?.toLowerCase();
-const onlyTenant = flag("tenant");
-const role = (flag("role") ?? "owner") as "owner" | "agent" | "viewer";
-if (!["owner", "agent", "viewer"].includes(role))
-  throw new Error("--role must be owner, agent or viewer");
-if (flag("role") && !onlyTenant)
-  throw new Error("--role needs --tenant (operators are owners everywhere)");
+const { email: ownerEmail, tenant: onlyTenant, role } = parseInviteArgs(process.argv.slice(2));
 
 const setSecret = (name: string, value: string) => {
   const r = spawnSync("node", ["scripts/secrets.mjs", "set", name], {
@@ -63,8 +54,11 @@ async function ensureUser(email: string, password?: string) {
   return data.user.id;
 }
 
-const { data: tenants } = await db.from("tenants").select("id, slug, is_demo");
-if (!tenants?.length) throw new Error("no tenants");
+const { data: tenantRows, error: tenantsError } = await db
+  .from("tenants")
+  .select("id, slug, is_demo");
+if (tenantsError || !tenantRows?.length) throw new Error(tenantsError?.message ?? "no tenants");
+const tenants: { id: string; slug: string; is_demo: boolean }[] = tenantRows;
 
 async function grant(
   userId: string,
@@ -87,12 +81,12 @@ await grant(demoId, "viewer", demoTenants);
 // Remove the demo viewer from any non-demo tenant (e.g. a tenant whose demo flag was turned off).
 const nonDemo = tenants.filter((t) => !t.is_demo).map((t) => t.id);
 if (nonDemo.length) {
-  const { error } = await db
+  const { error: removeError } = await db
     .from("tenant_members")
     .delete()
     .eq("user_id", demoId)
     .in("tenant_id", nonDemo);
-  if (error) throw new Error(error.message);
+  if (removeError) throw new Error(removeError.message);
 }
 setSecret("DEMO_VIEWER_EMAIL", demoEmail);
 console.log(

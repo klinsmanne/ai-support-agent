@@ -112,7 +112,7 @@ The fallback chain and per-tenant daily caps already protect the downstream serv
 Defenses: the trace view for diagnosis, the eval gate on every prompt change, re-running evals when a provider changes a model, and the kill switch.
 
 **Multi-region or data residency?**
-Tenant config can pin a provider region. Supabase projects are regional, so a residency-bound client gets its own project, and the same migrations and seed generator apply.
+Supabase projects are regional, so a residency-bound client gets its own project (same migrations, seed generator and code), deployed next to a model endpoint in the required region. Pinning a provider region per tenant isn't built yet; it would be a tenant setting read by the provider layer.
 
 ## STAR stories (have two ready)
 

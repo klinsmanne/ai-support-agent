@@ -44,7 +44,7 @@ Next.js 16 (App Router, TypeScript, Tailwind) on Vercel · Supabase Postgres + p
 - `npm run kb:embed` — embed new/changed KB chunks · `npm run kb:search -- "<q>" [slug]` — live retrieval check
 - `npm run llm:smoke` — live tool-calling round trip per model · `npm run agent:try [-- <name>]` — live agent on spec scenarios
 - `npm run eval -- --model <m>` / `eval:report` / `eval:gate` — evals (resumable on free tiers) · `npm run e2e` — live smoke tests
-- `npm run dashboard:users -- <email> [--tenant <slug> --role owner|agent|viewer]` — dashboard access (demo viewer: demo tenants only)
+- `npm run dashboard:users -- <email> --tenant <slug> --role owner|agent` (client team) or `-- <email> --all-tenants` (operator) — dashboard access; the demo viewer only ever sees demo tenants (RLS)
 - `npm run secrets push-vercel production` / `push-supabase-vault <poll URL>` — copy secrets to production (docs/DEPLOYMENT.md)
 - Project commands: `/verify`, `/run-evals`, `/compare-models`, `/check-usage`, `/deploy`, `/onboard-customer`, `/new-session-recap` (`.claude/commands/`)
 - Scripts load env themselves (`scripts/load-env.ts`); never put the env file name on a command line (the secret hook blocks it).

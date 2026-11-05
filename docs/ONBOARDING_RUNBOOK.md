@@ -43,7 +43,7 @@ npm run seed:build     # validates tenant.json against the schema and regenerate
 npm run check          # tests include tenant-config and seed checks
 ```
 
-CI fails if `seed.sql` is out of sync with `tenants/*`, so the database always matches the committed configuration. For a real client (`"demo": false`), the seed only _inserts missing_ orders and customers. It never overwrites or deletes them (ADR-019).
+CI fails if `seed.sql` is out of sync with `tenants/*`, so the database always matches the committed configuration. For a real client (`"demo": false`), the seed never deletes anything and never touches existing orders, payments or refunds (they are only inserted if missing). Customer rows are upserted, so a customer's name, email and plan follow `tenant.json` (ADR-019).
 
 ## 3. Load it into the database and embed the knowledge base
 
@@ -57,16 +57,17 @@ Asks first: this changes production data (CLAUDE.md, ADR-004).
 
 ## 4. Connect the channels
 
-- **Email:** a support address routed to the shared inbox with plus-addressing (`support+<client-slug>@…`), or the client's own Gmail via `npm run gmail:auth` (Gmail OAuth app in production, see [DEPLOYMENT.md](DEPLOYMENT.md)). Sender authentication uses DMARC (ADR-016).
+- **Email:** a support address routed to the shared inbox with plus-addressing (`support+<client-slug>@…`), or connect the client's own Gmail via `npm run gmail:auth`. Today there is one connected inbox per deployment, so this **replaces** the shared demo inbox; serving several inboxes at once needs one token per tenant (future work) (Gmail OAuth app in production, see [DEPLOYMENT.md](DEPLOYMENT.md)). Sender authentication uses DMARC (ADR-016).
 - **Chat:** the widget is already on the site. A client embed uses the same `/api/chat` with the tenant slug, and its hostname must be added to the Turnstile widget.
 
 ## 5. Give the client's team access
 
 ```bash
-npm run dashboard:users   # invite owners/agents (magic-link sign-in, no passwords)
+npm run dashboard:users -- owner@client.com --tenant <client-slug> --role owner
+npm run dashboard:users -- agent@client.com --tenant <client-slug> --role agent
 ```
 
-Roles: `owner` (settings, kill switch), `agent` (approve and edit drafts), `viewer` (read-only). RLS scopes every row to the tenant, so one client never sees another's data (ADR-009; tests in `tests/db/tenant-isolation.test.ts`).
+Sign-in is by magic link (no passwords). Roles: `owner` (settings, kill switch) and `agent` (approve and edit drafts). `viewer` is reserved for the public demo and sees nothing on a real client's tenant, enforced in the database. Unknown or malformed arguments are rejected, so a typo can't widen access. RLS scopes every row to the tenant, so one client never sees another's data (ADR-009, ADR-025; tests in `tests/db/tenant-isolation.test.ts`).
 
 ## 6. Staged rollout (the important part)
 

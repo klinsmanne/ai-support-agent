@@ -49,7 +49,7 @@ interface ChannelSender {
 1. Add the id to `ChannelId`. The database enum `channel_type` needs a migration (it only adds things).
 2. **Verify every webhook signature** before parsing. Reject replays: check the timestamp window, and rely on the provider message id dedupe.
 3. Map the provider's identity proof to `SenderAuth.aligned`. **Unverified senders get general answers only**: account tools refuse them (the same rule as email DMARC).
-4. Respond to the webhook quickly. Run the agent in `after()`, as chat and email do.
+4. Respond to the webhook quickly (most providers time out in a few seconds): acknowledge, then run the agent in `after()` or a queue. Today's routes run synchronously with a long `maxDuration` (chat 60 s, Gmail poll 300 s) because their callers can wait.
 5. Add the provider's link domains to the tenant's `allowed_link_domains` if replies may reference them.
 6. Tests: inbound normalization, signature rejection, dedupe on redelivery, and an end-to-end pipeline test with the in-memory store (see `tests/pipeline/pipeline.test.ts`).
 7. Add eval cases for anything channel-specific (for example Slack's shorter, informal messages).

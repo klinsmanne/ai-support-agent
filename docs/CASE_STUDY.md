@@ -53,7 +53,7 @@ The budget was **$0** for the pilot.
 - **A safety gap.**
   - The LLM judge caught gpt-oss-20b telling a customer "I've started that process for you now", meaning a carrier trace no tool can open. It also caught "we're opening an internal investigation".
   - My regex checks had missed the first one because of a curly apostrophe.
-  - The threat model had predicted exactly this failure. Now an outbound guardrail blocks any reply claiming an action code didn't perform. It flags **0 of 212** stored honest replies (**measured**).
+  - The threat model had predicted exactly this failure. Now an outbound guardrail blocks any reply claiming an action code didn't perform. On all 209 stored replies it flags only the real false claims, none of the honest ones (**measured**).
 
 **Live testing found what tests didn't.**
 
