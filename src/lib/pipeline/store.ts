@@ -99,4 +99,7 @@ export interface PipelineStore {
     channel: ChannelId,
     state: Record<string, unknown>,
   ): Promise<void>;
+  /** Atomically claim the channel for `seconds` (one poll at a time); false = someone holds it. */
+  claimChannelLease(tenantId: string, channel: ChannelId, seconds: number): Promise<boolean>;
+  releaseChannelLease(tenantId: string, channel: ChannelId): Promise<void>;
 }

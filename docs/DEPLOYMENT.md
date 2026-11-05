@@ -14,7 +14,7 @@ Live: **https://ai-support-ops-agent.vercel.app** · all free tiers, no credit c
 | Email                        | Gmail API, OAuth app **in production**          | Refresh token doesn't expire; Limited Use statement on `/privacy`                       |
 | Post-deploy smoke tests      | GitHub Actions `e2e.yml`                        | Runs `npm run e2e` against the live URL after each production deployment                |
 
-The pg_cron poll also keeps the free Supabase project from pausing for inactivity.
+The pg_cron poll also keeps the free Supabase project from pausing for inactivity. A lease (migration 12) lets only one poll run at a time, since a poll can take up to the endpoint's 300 s limit.
 
 ## Secrets
 
@@ -36,8 +36,8 @@ After changing a Vercel variable, redeploy (`vercel deploy --prod`, or merge to 
 ## Rollback
 
 - **App:** Vercel dashboard → Deployments → previous production deployment → "Promote to Production" (instant). Or revert the merge on `main`.
-- **Inbox processing:** `select cron.unschedule('poll-gmail');` stops polling. The dashboard kill switch stops the agent while keeping tickets flowing to humans.
-- **Database:** migrations only add things (tables, functions, jobs); undo one with a new migration rather than editing an applied file. The Gmail poll job is removed with `cron.unschedule('poll-gmail')`.
+- **Inbox processing:** `select cron.unschedule('poll-gmail');` stops polling (re-run migration 11's `cron.schedule` to restart). The dashboard kill switch stops the agent while keeping tickets flowing to humans.
+- **Database:** migrations only add things (tables, functions, jobs); undo one with a new migration rather than editing an applied file.
 
 ## Checks
 

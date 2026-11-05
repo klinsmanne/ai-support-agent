@@ -68,6 +68,12 @@ function set(name, value) {
 
 const [cmd, arg] = process.argv.slice(2);
 
+/** A readable error and exit code instead of a stack trace. */
+function fail(message) {
+  console.error(`✗ ${message}`);
+  process.exit(1);
+}
+
 if (cmd === "set") {
   if (!VARS[arg]) throw new Error(`Unknown variable ${arg}`);
   const value = (await new Response(process.stdin).text()).trim();
@@ -121,10 +127,10 @@ if (cmd === "set") {
   // a file on disk, or the terminal.
   const url = arg;
   if (!/^https:\/\/[a-z0-9.-]+\/api\/channels\/gmail\/poll$/.test(url ?? ""))
-    throw new Error("usage: push-supabase-vault https://<host>/api/channels/gmail/poll");
+    fail("usage: push-supabase-vault https://<host>/api/channels/gmail/poll");
   const secret = get("CRON_SECRET");
-  if (!secret || secret.length < 32) throw new Error("CRON_SECRET missing in Keychain");
-  if (!/^[A-Za-z0-9_\-+/=]+$/.test(secret)) throw new Error("unexpected characters in CRON_SECRET");
+  if (!secret || secret.length < 32) fail("CRON_SECRET missing in Keychain");
+  if (!/^[A-Za-z0-9_\-+/=]+$/.test(secret)) fail("unexpected characters in CRON_SECRET");
   const q = "$" + "s" + "$"; // dollar-quote tag; values are validated above, so they can't contain it
   const upsert = (name, value, description) => `
     do $v$ begin
@@ -143,7 +149,10 @@ if (cmd === "set") {
     cwd: root,
   });
   if (r.status !== 0)
-    throw new Error(`Supabase Vault update failed: ${r.stderr.trim().slice(0, 300)}`);
+    // stderr can echo the SQL, so the secret is redacted before anything is printed.
+    fail(
+      `Supabase Vault update failed: ${r.stderr.replaceAll(secret, "[redacted]").trim().slice(0, 300)}`,
+    );
   console.log("✓ cron_secret and gmail_poll_url stored in Supabase Vault (values not shown)");
 } else {
   console.log(

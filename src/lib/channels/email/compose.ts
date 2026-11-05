@@ -1,3 +1,4 @@
+import { markdownToPlainText } from "../../text/markdown.ts";
 import type { OutboundReply } from "../types.ts";
 
 /**
@@ -8,7 +9,8 @@ import type { OutboundReply } from "../types.ts";
 export function composeReplyMime(
   reply: OutboundReply,
   from: { email: string; name: string },
-  opts: { isReply?: boolean } = {},
+  /** stripMarkdown: model-written replies only; system emails (alerts, sign-in links) go as is. */
+  opts: { isReply?: boolean; stripMarkdown?: boolean } = {},
 ): string {
   const isReply = opts.isReply ?? true;
   const subject = !isReply
@@ -35,25 +37,9 @@ export function composeReplyMime(
   // Header injection guard: no CR/LF may survive inside a header value.
   for (const h of headers)
     if (/[\r\n]/.test(h)) throw new Error("header injection attempt blocked");
-  const body = Buffer.from(markdownToPlainText(reply.body), "utf8")
-    .toString("base64")
-    .replace(/.{76}/g, "$&\r\n");
+  const text = (opts.stripMarkdown ?? true) ? markdownToPlainText(reply.body) : reply.body;
+  const body = Buffer.from(text, "utf8").toString("base64").replace(/.{76}/g, "$&\r\n");
   return `${headers.join("\r\n")}\r\n\r\n${body}`;
-}
-
-/**
- * Models write chat-style Markdown; a text/plain email would show the raw "**" and "#". Strips
- * emphasis, headings and code marks, and turns [text](url) into "text (url)". Code, not the
- * prompt, so the eval results for the current prompt version stay valid (live test finding).
- */
-export function markdownToPlainText(text: string): string {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, "$1")
-    .replace(/__(.+?)__/g, "$1")
-    .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)\*(?!\w)/g, "$1$2")
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/`([^`\n]+)`/g, "$1")
-    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1 ($2)");
 }
 
 /** RFC 2047 encoded-word for non-ASCII header text (e.g. "Re: ¿Dónde está mi pedido?"). */

@@ -71,6 +71,8 @@ export function useTurnstile(siteKey: string | undefined) {
           callback: (t) => {
             token.current = t;
             status.current = "ready";
+            interactive.current = false;
+            setNeedsClick(false);
           },
           "expired-callback": () => (token.current = null),
           "error-callback": (code) => {
@@ -115,6 +117,9 @@ export function useTurnstile(siteKey: string | undefined) {
     }
     const t = token.current ?? undefined;
     token.current = null;
+    // Cloudflare doesn't call after-interactive on reset, so clear the click state here.
+    interactive.current = false;
+    setNeedsClick(false);
     if (widgetId.current && window.turnstile) {
       window.turnstile.reset(widgetId.current);
       status.current = "loading"; // a reset widget gets another chance after an error

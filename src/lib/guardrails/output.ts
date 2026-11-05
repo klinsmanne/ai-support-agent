@@ -3,6 +3,7 @@
  * Deterministic checks only — no model in the loop — so a compromised or confused model can't
  * talk its way past them.
  */
+import { markdownToPlainText } from "../text/markdown.ts";
 import { unperformedClaims } from "./claims.ts";
 
 export interface ReplyContext {
@@ -44,8 +45,19 @@ const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i
 const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 
 export function validateReply(reply: string, ctx: ReplyContext): ReplyVerdict {
+  // Check both the reply as written and as email will send it (Markdown stripped): marks like
+  // "**https**://evil.com" hide a link from the patterns until they are removed (security review).
+  const asWritten = checkText(reply.normalize("NFKC"), ctx);
+  const asSent = checkText(markdownToPlainText(reply).normalize("NFKC"), ctx);
+  // Marks wrapped around a dot ("evil**.**com") are a link in disguise even when the converter
+  // leaves them, since another renderer (chat, a mail client) might not.
+  const unmasked = checkText(reply.normalize("NFKC").replace(/[*_`]+\.[*_`]+/g, "."), ctx);
+  const violations = [...new Set([...asWritten, ...asSent, ...unmasked])];
+  return { ok: violations.length === 0, violations };
+}
+
+function checkText(text: string, ctx: ReplyContext): string[] {
   const violations: string[] = [];
-  const text = reply.normalize("NFKC");
 
   if (!text.trim()) violations.push("empty_reply");
   if (text.length > (ctx.maxLength ?? 4000)) violations.push("reply_too_long");
@@ -71,7 +83,7 @@ export function validateReply(reply: string, ctx: ReplyContext): ReplyVerdict {
     for (const c of unperformedClaims(text, ctx.executedActions))
       violations.push(`unperformed_action_claim:${c.type}`);
 
-  return { ok: violations.length === 0, violations: [...new Set(violations)] };
+  return violations;
 }
 
 /** Any scheme other than https is blocked outright (javascript:, data:, http:, ftp:, mailto: …). */

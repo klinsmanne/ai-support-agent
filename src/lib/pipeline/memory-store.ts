@@ -182,4 +182,14 @@ export class MemoryStore implements PipelineStore {
   async setChannelState(tenantId: string, channel: ChannelId, state: Record<string, unknown>) {
     this.state.set(`${tenantId}:${channel}`, state);
   }
+  leases = new Map<string, number>();
+  async claimChannelLease(tenantId: string, channel: ChannelId, seconds: number) {
+    const key = `${tenantId}:${channel}`;
+    if ((this.leases.get(key) ?? 0) > Date.now()) return false;
+    this.leases.set(key, Date.now() + seconds * 1000);
+    return true;
+  }
+  async releaseChannelLease(tenantId: string, channel: ChannelId) {
+    this.leases.delete(`${tenantId}:${channel}`);
+  }
 }

@@ -76,3 +76,25 @@ describe("validateReply with executed actions", () => {
     expect(validateReply(reply, { ...ctx, executedActions: ["refund"] }).ok).toBe(true);
   });
 });
+
+describe("validateReply checks the reply as email sends it (security review)", () => {
+  const ctx = {
+    canary: "c4n4ry",
+    allowedLinkDomains: ["hp.example"],
+    internalIds: ["0f8fad5b-d9cb-469f-a165-70867728950e"],
+  };
+  it("formatting can't hide an unapproved link, a blocked scheme or an internal id", () => {
+    for (const reply of [
+      "See **https**://evil.com/login",
+      "See `https`://evil.com/login",
+      "Go to evil**.**com/login",
+      "Visit **http**://evil.com",
+      "Your ticket is **0f8fad5b**-d9cb-469f-a165-70867728950e",
+    ])
+      expect(validateReply(reply, ctx).ok, reply).toBe(false);
+  });
+
+  it("still allows formatted text with approved links", () => {
+    expect(validateReply("**Returns:** see https://hp.example/returns", ctx).ok).toBe(true);
+  });
+});

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { InboundMessage } from "../types";
-import { composeReplyMime, markdownToPlainText } from "./compose";
+import { markdownToPlainText } from "../../text/markdown";
+import { composeReplyMime } from "./compose";
 import { baseAddress, emailSkipReason, plusTag } from "./filters";
 import {
   parseAddress,
@@ -250,6 +251,34 @@ describe("markdownToPlainText (live test: emails showed raw **)", () => {
     ).toBe(
       "Returns\nReturn policy for sale items\n• Final sale items unless damaged\n* bullet stays\nUse code and the policy (https://hp.example/returns).",
     );
+  });
+
+  it("leaves identifiers, globs and multiplication alone (code-quality review)", () => {
+    for (const text of [
+      "snake__case__name",
+      "a/*.txt and b/*.md",
+      "5 * 3 = 15",
+      "first_name@example.com",
+      "x**2** = 4",
+    ])
+      expect(markdownToPlainText(text), text).toBe(text);
+    expect(markdownToPlainText("***both***")).toBe("both");
+  });
+
+  it("system emails (alerts, sign-in links) are sent exactly as written", () => {
+    const raw = composeReplyMime(
+      {
+        channel: "email",
+        threadKey: "",
+        to: "owner@example.com",
+        subject: "Alert",
+        body: "err **x**",
+      },
+      { email: "support@example.com", name: "Support" },
+      { isReply: false, stripMarkdown: false },
+    );
+    const body = Buffer.from(raw.split("\r\n\r\n")[1].replace(/\r\n/g, ""), "base64").toString();
+    expect(body).toBe("err **x**");
   });
 
   it("leaves plain text, prices and math untouched", () => {

@@ -441,4 +441,15 @@ describe("Gmail poller", () => {
     expect([...seen].sort()).toEqual([...ids].sort()); // 4 + 4 + 2: everything processed, in order
     expect((await store.channelState(HP, "email")).pending).toEqual([]);
   });
+
+  it("an overlapping poll does nothing while another holds the lease (review finding)", async () => {
+    const { pollGmail } = await import("@/lib/channels/email/poll");
+    const gmail = { profile: async () => ({ emailAddress: INBOX, historyId: "1" }) };
+    expect(await store.claimChannelLease(HP, "email", 330)).toBe(true); // the slow poll
+    const report = await pollGmail(gmail as never, deps(router([])), HP);
+    expect(report.skipped).toBe("already_running");
+    await store.releaseChannelLease(HP, "email");
+    expect(await store.claimChannelLease(HP, "email", 330)).toBe(true); // released → free again
+    await store.releaseChannelLease(HP, "email");
+  });
 });

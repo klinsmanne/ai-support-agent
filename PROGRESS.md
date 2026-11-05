@@ -31,7 +31,6 @@ _Last updated: 2026-11-05_
 ## Next
 
 - Milestone E — Channels: email pipeline (Gmail OAuth, poll via pg_cron, filters/dedupe/threading, SPF/DKIM/DMARC) + chat widget (verification, Turnstile)
-- H — Hardening + THREAT_MODEL · I — Evals + model comparison · J — Production deploy
 - Dependabot PRs #2–#6 (TypeScript 7 and ESLint 10 are majors — test before merging)
 
 ## Known issues
