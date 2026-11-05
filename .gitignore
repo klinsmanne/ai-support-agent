@@ -64,6 +64,7 @@ scripts/demo-video/*.bin
 scripts/demo-video/frames/
 scripts/demo-video/audio/
 scripts/demo-video/clips/
-scripts/demo-video/*.json
+scripts/demo-video/scenes.json
+scripts/demo-video/lines.json
 scripts/demo-video/list.txt
 scripts/demo-video/demo.mp4

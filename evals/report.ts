@@ -66,12 +66,10 @@ const quantile = (xs: number[], q: number) => {
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
 /**
- * @param fallbackModel model id to use when the file has no records (derived from its name).
- */
-/**
  * Latest record per case, re-scored with the current scorer so results stay comparable after
  * scorer fixes. A sampled model is judged only on the sample, even if older runs scored others.
  * Shared by the summary, the CI gate and the per-case export the Python analysis reads.
+ * @param fallbackModel model id to use when the file has no records (derived from its name).
  */
 export function rescore(records: EvalRecord[], fallbackModel = "?"): EvalRecord[] {
   const model = records[0]?.model ?? fallbackModel;

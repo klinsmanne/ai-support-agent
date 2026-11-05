@@ -40,13 +40,13 @@ Each ticket ends one of three ways:
 | Target       |      50% |          30% |               $2.73 |    $213,060 |       **$395,340** |                     563 |
 | Strong       |      70% |          20% |               $1.56 |    $121,840 |       **$486,560** |                     693 |
 
-Hours saved = 6,500 × (a × 8 + d × 4) ÷ 60. Even the conservative case beats the < $3.50 target once a cheaper draft path exists. The 50% target alone, with no drafts, gives $3.90, which is why the assisted path matters.
+Hours saved = 6,500 × (a × 8 + d × 4) ÷ 60. The target and strong cases beat the < $3.50 target; the conservative case ($4.29) does not, so the pilot gate in §6 requires a projected auto-resolution of at least 40%. The 50% target alone, with no drafts, gives $3.90, which is why the assisted path matters.
 
 **What's measured so far:**
 
 - the production models handle 96–98% of a 47-case realistic test set fully correctly, with 0 safety failures;
 - a live email was answered 6.7 s after it was picked up;
-- the live demo tenant shows auto-resolution around 50% on its small sample.
+- the live demo tenant shows auto-resolution of about 44% (4 of 9 tickets): a small, deliberately adversarial sample of test conversations, not client traffic.
 
 The real auto-resolution rate must be measured in **shadow mode on the client's own traffic** before any of this is booked as savings.
 

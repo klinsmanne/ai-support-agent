@@ -79,13 +79,13 @@ Shadow (1 week) → draft-only (1–2 weeks) → auto-send. Each gate is agreed 
 
 ## 7. Risks
 
-| Risk                           | Mitigation                                                                                                    |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| Wrong or unauthorized refund   | The model only requests; code and the database enforce limits; human approval above $75                       |
-| Prompt injection               | Inputs treated as data; write tools removed when suspected; human review ([THREAT_MODEL.md](THREAT_MODEL.md)) |
-| Hallucinated policy or actions | Retrieval with citations; low confidence escalates; claimed actions checked against what code did (ADR-023)   |
-| Free-tier limits at peak       | Model fallback chain; tickets go to humans, never dropped; a paid tier costs about $3/month at this volume    |
-| Low trust or adoption          | Staged rollout, visible traces, one-click approvals                                                           |
+| Risk                           | Mitigation                                                                                                                                           |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wrong or unauthorized refund   | The model only requests; code and the database enforce limits; human approval above $75                                                              |
+| Prompt injection               | Inputs treated as data; write tools removed when suspected; human review ([THREAT_MODEL.md](THREAT_MODEL.md))                                        |
+| Hallucinated policy or actions | Retrieval with citations; low confidence escalates; claimed actions checked against what code did (ADR-023)                                          |
+| Free-tier limits at peak       | Model fallback chain; tickets go to humans, never dropped; a paid tier costs about $3–17/month at this volume ($3 on gpt-oss-20b, $17 on Flash-Lite) |
+| Low trust or adoption          | Staged rollout, visible traces, one-click approvals                                                                                                  |
 
 ## 8. Open questions for the client
 

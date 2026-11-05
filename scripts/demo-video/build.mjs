@@ -1,5 +1,6 @@
-// Builds the 2-minute demo video: captures scenes, narrates each with macOS `say`, and assembles
-// a 1080p H.264 MP4 with fades. Usage: node build.mjs
+// Builds the 2-minute demo video: captures scenes, narrates each with Kokoro (open-source TTS, run
+// locally), and assembles a 1080p H.264 MP4 with fades. Usage: node build.mjs
+// Then normalize loudness: ffmpeg -i demo.mp4 -c:v copy -af loudnorm=I=-16:TP=-1.5:LRA=11 -c:a aac out.mp4
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 
@@ -119,11 +120,11 @@ execFileSync(`${DIR}kok/bin/python`, [`${DIR}kok_tts.py`, DIR], { stdio: "inheri
 const list = [];
 for (const i of scenes.keys()) {
   const n = String(i).padStart(2, "0");
-  const aiff = `${DIR}audio/${n}.wav`;
+  const wav = `${DIR}audio/${n}.wav`;
   const dur = parseFloat(
     execFileSync(
       "ffprobe",
-      ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", aiff],
+      ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", wav],
       {
         encoding: "utf8",
       },
@@ -142,7 +143,7 @@ for (const i of scenes.keys()) {
     "-i",
     `${DIR}frames/${n}.png`,
     "-i",
-    aiff,
+    wav,
     "-filter_complex",
     `[0:v]scale=1920:1080,format=yuv420p,fade=t=in:st=0:d=0.35,fade=t=out:st=${(total - 0.35).toFixed(2)}:d=0.35[v];` +
       `[1:a]adelay=400|400,apad,atrim=0:${total},aresample=48000,afade=t=out:st=${(total - 0.3).toFixed(2)}:d=0.3[a]`,

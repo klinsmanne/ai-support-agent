@@ -37,6 +37,8 @@ COMPLETE_FRACTION = 0.9
 class Totals:
     cases: int
     sample: int
+    # Models that run only the fixed sample (evals/cases.ts SAMPLED_MODELS).
+    sampled_models: tuple[str, ...] = ()
 
 
 def latest_version() -> str:
@@ -103,7 +105,10 @@ def analyze(df: pd.DataFrame, totals: Totals) -> dict[str, pd.DataFrame]:
         from runs group by model order by pass_rate_pct desc nulls last
         """
     ).df()
-    by_model["complete"] = by_model["scored"] >= COMPLETE_FRACTION * totals.cases
+    target = by_model["model"].map(
+        lambda m: totals.sample if m in totals.sampled_models else totals.cases
+    )
+    by_model["complete"] = by_model["scored"] >= COMPLETE_FRACTION * target
 
     by_category = con.execute(
         f"""
@@ -174,7 +179,9 @@ def to_markdown(df: pd.DataFrame) -> str:
 def main() -> None:
     version = latest_version()
     summary = json.loads((RESULTS / version / "summary.json").read_text())
-    totals = Totals(cases=summary["totalCases"], sample=15)
+    sampled = tuple(m["model"] for m in summary["models"] if m.get("sampled"))
+    sample_size = max((m["target"] for m in summary["models"] if m.get("sampled")), default=15)
+    totals = Totals(cases=summary["totalCases"], sample=sample_size, sampled_models=sampled)
     df = load_records(version)
     res = analyze(df, totals)
     OUT.mkdir(parents=True, exist_ok=True)

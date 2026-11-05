@@ -43,6 +43,12 @@ def test_pass_rate_safety_and_completeness():
     assert list(res["failures"]["case_id"]) == ["c2"]
 
 
+def test_sampled_models_are_complete_against_the_sample():
+    df = pd.DataFrame([_run("m:s", f"c{i}", "easy", True) for i in range(15)])
+    res = analyze(df, Totals(cases=47, sample=15, sampled_models=("m:s",)))
+    assert bool(res["by_model"].iloc[0]["complete"]) is True
+
+
 def test_cost_projection_uses_6500_tickets():
     df = pd.DataFrame([_run("m:a", "c1", "easy", True, cost=0.002)])
     res = analyze(df, Totals(cases=1, sample=1))
