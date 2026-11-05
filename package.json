@@ -25,7 +25,8 @@
     "dashboard:users": "tsx scripts/setup-dashboard-users.ts",
     "eval": "tsx evals/run.ts",
     "eval:report": "tsx evals/report.ts",
-    "eval:gate": "tsx evals/gate.ts"
+    "eval:gate": "tsx evals/gate.ts",
+    "e2e": "vitest run --config vitest.e2e.config.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",

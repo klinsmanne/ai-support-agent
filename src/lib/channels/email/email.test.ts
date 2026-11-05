@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { InboundMessage } from "../types";
-import { composeReplyMime } from "./compose";
+import { composeReplyMime, markdownToPlainText } from "./compose";
 import { baseAddress, emailSkipReason, plusTag } from "./filters";
 import {
   parseAddress,
@@ -238,6 +238,23 @@ describe("emailSkipReason (loop prevention)", () => {
     expect(plusTag(["integralplantsupport+cadence@gmail.com"], INBOX)).toBe("cadence");
     expect(plusTag([INBOX], INBOX)).toBeNull();
     expect(baseAddress("A+x@B.com")).toBe("a@b.com");
+  });
+});
+
+describe("markdownToPlainText (live test: emails showed raw **)", () => {
+  it("strips emphasis, headings and code marks, keeps bullets and link targets", () => {
+    expect(
+      markdownToPlainText(
+        "## Returns\n**Return policy for sale items**\n• Final sale items *unless* damaged\n* bullet stays\nUse `code` and [the policy](https://hp.example/returns).",
+      ),
+    ).toBe(
+      "Returns\nReturn policy for sale items\n• Final sale items unless damaged\n* bullet stays\nUse code and the policy (https://hp.example/returns).",
+    );
+  });
+
+  it("leaves plain text, prices and math untouched", () => {
+    const text = 'Total: $49.00 for 2 x 3 items, 5 * 3 = 15. Reply "human" anytime.';
+    expect(markdownToPlainText(text)).toBe(text);
   });
 });
 

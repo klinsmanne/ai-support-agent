@@ -1,0 +1,34 @@
+name: E2E (live site)
+
+# Vercel reports each deployment to GitHub; after a successful *production* deployment, run the
+# HTTP smoke tests against the URL it reports. Preview deployments sit behind Vercel's login, so
+# they're skipped. Can also be run by hand from the Actions tab.
+on:
+  deployment_status:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke tests against the deployed site
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Production')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # The stable production address, not the per-deployment URL (that one is login-protected).
+      - run: npm run e2e
+        env:
+          E2E_BASE_URL: https://ai-support-ops-agent.vercel.app
