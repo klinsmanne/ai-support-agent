@@ -28,15 +28,13 @@ _Last updated: 2026-11-05_
   - the repo is public.
 - **Open:**
   - Gemini Flash (15-case sample) and gpt-oss-120b eval results (free quota; `npm run eval:report` + small commit);
-  - second alert channel;
-  - Dependabot PRs #2–#6.
+  - nothing else: the second alert channel (ntfy) and the dependency upgrades are done (ADR-026).
 - **Career pack** (private, outside the repo): `~/Desktop/New Job App/2026/Portfolio Career Pack/`. Start with `00_START_HERE.md`.
 
 ## Next
 
 - Add the pending eval results when the free-quota runs finish
-- Optional: second alert channel; re-record the demo narration in your own voice (`.voice-samples/RECORD_THIS.md`, `scripts/demo-video/`)
-- Dependabot PRs #2–#6 (TypeScript 7 and ESLint 10 are majors — test before merging)
+- Optional: re-record the demo narration in your own voice (`.voice-samples/RECORD_THIS.md`, `scripts/demo-video/`)
 
 ## Known issues
 
@@ -52,4 +50,4 @@ Paste this into a new Claude Code session opened in this folder:
 
 ## Decisions
 
-See `docs/DECISIONS.md` (ADR-001 … ADR-025).
+See `docs/DECISIONS.md` (ADR-001 … ADR-026).

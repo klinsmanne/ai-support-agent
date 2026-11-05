@@ -155,3 +155,13 @@ Architecture decision records (ADRs) — short, with context and trade-offs. New
   - Invites fail closed: unknown or malformed arguments are rejected, and access to every tenant needs an explicit `--all-tenants`.
   - Client teams get `owner` or `agent`; `viewer` is reserved for the public demo.
 - **Lesson:** writing the runbook step "invite the client's team" was what surfaced it. Documentation is a review.
+
+## ADR-026: Two alert channels: email plus ntfy push
+
+- **Context:** failure alerts went out only through Gmail. The failure most likely to need an alert, Gmail itself (an expired token, a revoked grant), was the one that couldn't send one.
+- **Decision:** `reportFailure` fans out to every configured channel in parallel and succeeds if any one delivers: email to `ALERT_EMAIL`, plus a push notification through [ntfy](https://ntfy.sh). ntfy is free and open source, with no account, and the operator subscribes in its phone app.
+- **Security:** an ntfy topic is readable by anyone who knows its name, so `ALERT_NTFY_TOPIC` is a long random secret (validated in `env.ts`, stored like other secrets). Alert bodies are already PII-masked and contain only the failure kind and a clipped error.
+- **Dependencies (same change):**
+  - React 19.3.1, ESLint 10, @types/node 26 and TypeScript **6.0**.
+  - TypeScript 7 (the native rewrite) was tested and rejected for now, because typescript-eslint supports TypeScript below 6.1.
+  - Dependabot ignores TypeScript ≥ 6.1 until that changes.

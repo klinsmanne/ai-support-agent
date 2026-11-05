@@ -89,7 +89,7 @@ Blended cost formula: 0.5 × $0.003 + 0.3 × $3.90 + 0.2 × $7.80 ≈ $2.73. At 
 1. Run the client's own anonymized tickets as eval cases, in shadow mode, for a week.
 2. Replace the simulated refund and tracking tools with real APIs, behind the same policy checks.
 3. Move email to a paid no-training tier (about $3/month at this volume) for headroom.
-4. Add a second alert channel, and measure escalation precision weekly.
+4. Measure escalation precision weekly with the support lead.
 
 ## Built with
 

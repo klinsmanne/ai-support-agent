@@ -36,6 +36,9 @@ const serverEnvSchema = z.object({
   GMAIL_REFRESH_TOKEN: optional(z.string().min(1)),
   SUPPORT_EMAIL_ADDRESS: optional(z.email()),
   ALERT_EMAIL: optional(z.email()),
+  // ntfy push topic (second alert channel). Public topics are readable by anyone who knows the
+  // name, so it must be a long random secret.
+  ALERT_NTFY_TOPIC: optional(z.string().regex(/^[A-Za-z0-9_-]{24,64}$/)),
   // Bot protection for the chat widget
   TURNSTILE_SITE_KEY: optional(z.string().min(1)),
   TURNSTILE_SECRET_KEY: optional(z.string().min(1)),

@@ -57,7 +57,7 @@ Harbor & Pine's 9 agents handle about **6,500 tickets a month**. The median firs
 - per-client inboxes;
 - amount checking in replies;
 - SSO;
-- a second alert channel.
+- an external uptime monitor.
 
 **Could have:**
 

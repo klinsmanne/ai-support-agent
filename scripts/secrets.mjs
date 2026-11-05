@@ -35,6 +35,7 @@ const VARS = {
   GMAIL_REFRESH_TOKEN: { secret: true },
   SUPPORT_EMAIL_ADDRESS: { secret: false },
   ALERT_EMAIL: { secret: false },
+  ALERT_NTFY_TOPIC: { secret: true },
   TURNSTILE_SITE_KEY: { secret: false },
   TURNSTILE_SECRET_KEY: { secret: true },
   CSRF_SECRET: { secret: true },
