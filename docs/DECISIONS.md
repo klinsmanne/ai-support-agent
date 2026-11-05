@@ -145,3 +145,9 @@ Architecture decision records (ADRs) — short, with context and trade-offs. New
 - **Gmail:** the OAuth app is published (unverified, fine for a single inbox, under 100 users), so the refresh token no longer expires after 7 days. The branding links point to the live `/privacy` and `/terms`.
 - **Verified live (2026-11-05):** a real email was answered 6.7 s after it was fetched. The chat answered a visitor after the Turnstile check, and the read-only demo dashboard works. 8 HTTP smoke tests run after each production deploy.
 - **Found by the live test:** a visitor took more than 30 s to tick "Verify you are human", so the chat now waits up to 2 minutes once Cloudflare asks and shows a hint. Model Markdown showed as raw `**` in plain-text email, so the email composer now strips it in code rather than in the prompt, which keeps the eval results valid.
+
+## ADR-025: Dashboard access is scoped per client; the public demo sees demo tenants only
+
+- **Context (found while writing the onboarding runbook):** `npm run dashboard:users` gave the public demo viewer the viewer role on **every** tenant, and gave any invited person owner on every tenant. With only fictional demo tenants nothing was exposed. But onboarding a real client this way would have shown that client's tickets to anyone clicking "View demo dashboard", and given the client's team access to other clients.
+- **Decision:** the demo viewer is granted only on tenants with `is_demo = true`, and is removed from any tenant that isn't a demo. Inviting without `--tenant` makes the operator an owner everywhere; `--tenant <slug> --role owner|agent|viewer` invites a client's team to that client only. RLS (ADR-009, ADR-018) still enforces visibility row by row; this keeps memberships correct in the first place.
+- **Lesson:** writing the runbook step "invite the client's team" was what surfaced it. Documentation is a review.

@@ -1,9 +1,14 @@
 /**
  * Provisions dashboard access (idempotent):
- *  - the public read-only demo viewer (no usable password; signs in via a one-time server token), viewer role on
- *    every tenant;
- *  - an owner (invited by email; signs in with a magic link), owner role on every tenant.
- * Usage: npm run dashboard:users -- [owner-email]
+ *  - the public read-only demo viewer (no usable password; signs in via a one-time server token),
+ *    viewer role on **demo tenants only**: a real client's tenant is never visible to the public demo;
+ *  - an invited person (signs in with a magic link). Without --tenant: owner on every tenant (the
+ *    operator running the deployment). With --tenant: that one client only, with --role.
+ *
+ * Usage:
+ *   npm run dashboard:users                                   # demo viewer only
+ *   npm run dashboard:users -- you@example.com                # operator: owner on all tenants
+ *   npm run dashboard:users -- lead@client.com --tenant client-slug --role agent   # client team
  */
 import "./load-env.ts";
 import { randomBytes } from "node:crypto";
@@ -12,7 +17,18 @@ import { createServiceClient } from "../src/lib/db/client.ts";
 
 const env = process.env as Record<string, string>;
 const db = createServiceClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY);
-const ownerEmail = process.argv[2]?.toLowerCase();
+const args = process.argv.slice(2);
+const flag = (name: string) => {
+  const i = args.indexOf(`--${name}`);
+  return i >= 0 ? args[i + 1] : undefined;
+};
+const ownerEmail = args.find((a) => !a.startsWith("--") && a.includes("@"))?.toLowerCase();
+const onlyTenant = flag("tenant");
+const role = (flag("role") ?? "owner") as "owner" | "agent" | "viewer";
+if (!["owner", "agent", "viewer"].includes(role))
+  throw new Error("--role must be owner, agent or viewer");
+if (flag("role") && !onlyTenant)
+  throw new Error("--role needs --tenant (operators are owners everywhere)");
 
 const setSecret = (name: string, value: string) => {
   const r = spawnSync("node", ["scripts/secrets.mjs", "set", name], {
@@ -47,11 +63,16 @@ async function ensureUser(email: string, password?: string) {
   return data.user.id;
 }
 
-const { data: tenants } = await db.from("tenants").select("id, slug");
+const { data: tenants } = await db.from("tenants").select("id, slug, is_demo");
 if (!tenants?.length) throw new Error("no tenants");
 
-async function grant(userId: string, role: "owner" | "viewer") {
-  const rows = tenants!.map((t) => ({ tenant_id: t.id, user_id: userId, role }));
+async function grant(
+  userId: string,
+  role: "owner" | "agent" | "viewer",
+  scope: { id: string; slug: string }[],
+) {
+  if (!scope.length) return;
+  const rows = scope.map((t) => ({ tenant_id: t.id, user_id: userId, role }));
   const { error } = await db
     .from("tenant_members")
     .upsert(rows, { onConflict: "tenant_id,user_id" });
@@ -61,14 +82,29 @@ async function grant(userId: string, role: "owner" | "viewer") {
 // Demo viewer: random password that nobody keeps (sign-in is a server-minted one-time token).
 const demoEmail = env.DEMO_VIEWER_EMAIL || "demo-viewer@support-agent.example";
 const demoId = await ensureUser(demoEmail, randomBytes(32).toString("base64url"));
-await grant(demoId, "viewer");
+const demoTenants = tenants.filter((t) => t.is_demo);
+await grant(demoId, "viewer", demoTenants);
+// Remove the demo viewer from any non-demo tenant (e.g. a tenant whose demo flag was turned off).
+const nonDemo = tenants.filter((t) => !t.is_demo).map((t) => t.id);
+if (nonDemo.length) {
+  const { error } = await db
+    .from("tenant_members")
+    .delete()
+    .eq("user_id", demoId)
+    .in("tenant_id", nonDemo);
+  if (error) throw new Error(error.message);
+}
 setSecret("DEMO_VIEWER_EMAIL", demoEmail);
-console.log(`✓ demo viewer ready (viewer on ${tenants.length} tenants); no stored password`);
+console.log(
+  `✓ demo viewer ready (viewer on ${demoTenants.length} demo tenants); no stored password`,
+);
 
 if (ownerEmail) {
-  const ownerId = await ensureUser(ownerEmail);
-  await grant(ownerId, "owner");
+  const scope = onlyTenant ? tenants.filter((t) => t.slug === onlyTenant) : tenants;
+  if (!scope.length) throw new Error(`unknown tenant ${onlyTenant}`);
+  const userId = await ensureUser(ownerEmail);
+  await grant(userId, role, scope);
   console.log(
-    `✓ owner invited: ${ownerEmail.replace(/^(.).*@/, "$1***@")} (owner on ${tenants.length} tenants) — sign in with a magic link`,
+    `✓ invited ${ownerEmail.replace(/^(.).*@/, "$1***@")} as ${role} on ${scope.map((t) => t.slug).join(", ")} — sign in with a magic link`,
   );
 }
