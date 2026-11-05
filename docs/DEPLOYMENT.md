@@ -4,15 +4,15 @@ Live: **https://ai-support-ops-agent.vercel.app** · all free tiers, no credit c
 
 ## What runs where
 
-| Piece                        | Where                                           | Notes                                                                                   |
-| ---------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Web app, chat API, dashboard | Vercel Hobby (project `ai-support-agent`)       | Deploys from GitHub: every merge to `main` → production; PRs → login-protected previews |
-| Database, auth, RLS          | Supabase free (`uhjaivpcizzgwvozaojp`)          | Migrations in `supabase/migrations/`, seed generated from `tenants/*`                   |
-| Gmail polling                | Supabase pg_cron `poll-gmail`, every 2 min      | pg_net POSTs to `/api/channels/gmail/poll` with `CRON_SECRET` from Supabase Vault       |
-| Data lifecycle               | Supabase pg_cron (purge, demo reset, pruning)   | ADR-019                                                                                 |
-| Bot check for chat           | Cloudflare Turnstile (widget for the live host) | Fails closed in production (ADR-021)                                                    |
-| Email                        | Gmail API, OAuth app **in production**          | Refresh token doesn't expire; Limited Use statement on `/privacy`                       |
-| Post-deploy smoke tests      | GitHub Actions `e2e.yml`                        | Runs `npm run e2e` against the live URL after each production deployment                |
+| Piece                        | Where                                           | Notes                                                                                                         |
+| ---------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Web app, chat API, dashboard | Vercel Hobby (project `ai-support-agent`)       | Deploys from GitHub: every merge to `main` → production; PRs → login-protected previews                       |
+| Database, auth, RLS          | Supabase free (`uhjaivpcizzgwvozaojp`)          | Migrations in `supabase/migrations/`, seed generated from `tenants/*`                                         |
+| Gmail polling                | Supabase pg_cron `poll-gmail`, every 2 min      | pg_net POSTs to `/api/channels/gmail/poll` with `CRON_SECRET` from Supabase Vault                             |
+| Data lifecycle               | Supabase pg_cron (purge, demo reset, pruning)   | ADR-019                                                                                                       |
+| Bot check for chat           | Cloudflare Turnstile (widget for the live host) | Fails closed in production (ADR-021)                                                                          |
+| Email                        | Gmail API, OAuth app **in production**          | Refresh token doesn't expire; Limited Use statement on `/privacy`                                             |
+| Post-deploy smoke tests      | GitHub Actions `e2e.yml`                        | After each push to `main`, waits until `/api/health` reports that commit, then runs `npm run e2e`; also daily |
 
 The pg_cron poll also keeps the free Supabase project from pausing for inactivity. A lease (migration 12) lets only one poll run at a time, since a poll can take up to the endpoint's 300 s limit.
 
