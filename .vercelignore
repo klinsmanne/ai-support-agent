@@ -1,0 +1,9 @@
+# Never upload local secrets or machine-only files with `vercel deploy` (deploys normally come from GitHub).
+.env*
+!.env.example
+.claude/
+.next/
+node_modules/
+coverage/
+supabase/.temp/
+evals/results/

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 
@@ -12,7 +12,9 @@ interface TurnstileApi {
       appearance?: "always" | "execute" | "interaction-only";
       callback: (token: string) => void;
       "expired-callback": () => void;
-      "error-callback": () => void;
+      "error-callback": (code: string) => void;
+      "before-interactive-callback"?: () => void;
+      "after-interactive-callback"?: () => void;
     },
   ): string;
   reset(widgetId: string): void;
@@ -53,6 +55,9 @@ export function useTurnstile(siteKey: string | undefined) {
   const token = useRef<string | null>(null);
   // "failed" (script blocked, network, widget error) makes take() return at once, not stall.
   const status = useRef<"loading" | "ready" | "failed">("loading");
+  // Cloudflare is showing "Verify you are human": the visitor must click before a token exists.
+  const interactive = useRef(false);
+  const [needsClick, setNeedsClick] = useState(false);
 
   useEffect(() => {
     if (!siteKey) return;
@@ -68,9 +73,21 @@ export function useTurnstile(siteKey: string | undefined) {
             status.current = "ready";
           },
           "expired-callback": () => (token.current = null),
-          "error-callback": () => {
+          "error-callback": (code) => {
             token.current = null;
             status.current = "failed";
+            interactive.current = false;
+            setNeedsClick(false);
+            // Error codes explain failures (e.g. 110200 = hostname not allowed for this key).
+            console.warn(`Turnstile error ${code}`);
+          },
+          "before-interactive-callback": () => {
+            interactive.current = true;
+            setNeedsClick(true);
+          },
+          "after-interactive-callback": () => {
+            interactive.current = false;
+            setNeedsClick(false);
           },
         });
       })
@@ -85,10 +102,13 @@ export function useTurnstile(siteKey: string | undefined) {
   /** A token for one request (tokens are single-use), or undefined if none arrives in time. */
   const take = useCallback(async (): Promise<string | undefined> => {
     if (!siteKey) return undefined;
-    // Up to 30 s: an interactive challenge may need the visitor to click.
+    // Up to 30 s for the invisible check, and up to 2 minutes once Cloudflare asks the visitor to
+    // click (live test: a visitor reading the page took longer than 30 s to tick the box).
     for (
       let waited = 0;
-      !token.current && status.current !== "failed" && waited < 30_000;
+      !token.current &&
+      status.current !== "failed" &&
+      waited < (interactive.current ? 120_000 : 30_000);
       waited += 200
     ) {
       await new Promise((r) => setTimeout(r, 200));
@@ -102,5 +122,5 @@ export function useTurnstile(siteKey: string | undefined) {
     return t;
   }, [siteKey]);
 
-  return { container, take };
+  return { container, take, needsClick };
 }
