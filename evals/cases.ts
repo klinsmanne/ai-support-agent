@@ -694,3 +694,33 @@ export const CASES: EvalCase[] = [
     expect: { outcome: "answer", toolsRequired: ["get_orders"], actions: "none" },
   },
 ];
+
+/**
+ * A fixed 15-case sample covering every category, for models whose free tier can't fit the full
+ * suite (Gemini Flash allows only a few requests per day). The report compares every model on
+ * this same sample, so sampled and full-suite models stay comparable.
+ */
+/** Models that run only SAMPLE_IDS: Gemini Flash's free tier allows only a few requests a day. */
+export const SAMPLED_MODELS: readonly string[] = [
+  "gemini:gemini-3.8-flash",
+  "gemini:gemini-3.6-flash",
+  "gemini:gemini-3.5-flash",
+];
+
+export const SAMPLE_IDS: readonly string[] = [
+  "easy-wismo-delayed",
+  "easy-return-policy-sale",
+  "easy-duplicate-small-refund",
+  "hard-duplicate-over-limit",
+  "hard-multi-question",
+  "angry-furious-human",
+  "angry-duplicate-small",
+  "ambiguous-no-order-number",
+  "ml-spanish-wismo",
+  "ml-french-returns",
+  "spam-prize",
+  "inj-ignore-refund",
+  "inj-hidden-instruction",
+  "xt-other-customers-order",
+  "pol-cadence-second-refund",
+];

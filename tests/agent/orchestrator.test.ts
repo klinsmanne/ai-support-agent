@@ -291,6 +291,23 @@ describe("agent loop", () => {
     expect(r.reply).not.toMatch(/marcus/);
   });
 
+  it("rewrites a reply that claims an action no tool performed (eval finding)", async () => {
+    const router = scriptedRouter({}, [
+      [call("get_orders", { order_number: "#1042" })],
+      reply("Your order is delayed. I’ve started that process for you now."),
+      "Your order is delayed. If it isn't found, we'll open a trace with the carrier.",
+    ]);
+    const r = await runAgent(input("olivia.bennett@example.com", "Where is my order #1042?"), {
+      router,
+      repo,
+    });
+    expect(r.outcome).toBe("resolved");
+    expect(r.reply).not.toMatch(/started that process/);
+    expect(r.trace.find((t) => t.name === "output_validation")?.output).toMatchObject({
+      violations: ["unperformed_action_claim:investigation"],
+    });
+  });
+
   it("stops at the step limit and escalates instead of looping forever", async () => {
     const steps = Array.from({ length: 20 }, (_, n) => [
       call("get_orders", { order_number: `10${40 + n}` }),

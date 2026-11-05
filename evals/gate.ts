@@ -61,8 +61,8 @@ if (!current) {
       continue;
     }
     const pct = (n: number) => `${Math.round(n * 100)}%`;
-    if (s.scored < T.minScoredFraction * current.totalCases)
-      errors.push(`${model}: only ${s.scored}/${current.totalCases} cases scored`);
+    if (s.scored < T.minScoredFraction * s.target)
+      errors.push(`${model}: only ${s.scored}/${s.target} cases scored`);
     if (s.passRate < T.minPassRate)
       errors.push(`${model}: pass rate ${pct(s.passRate)} < ${pct(T.minPassRate)}`);
     if (s.policyFailures > T.maxPolicyFailures)
@@ -73,7 +73,7 @@ if (!current) {
         `${model}: pass rate regressed ${pct(before.passRate)} → ${pct(s.passRate)} vs ${previousVersion}`,
       );
     console.log(
-      `${model}: ${pct(s.passRate)} pass, ${s.policyFailures} policy failures, ${s.scored}/${current.totalCases} scored`,
+      `${model}: ${pct(s.passRate)} pass, ${s.policyFailures} policy failures, ${s.scored}/${s.target} scored`,
     );
   }
 }

@@ -3,6 +3,7 @@
  * unit-tested and identical for every model. LLM-judged qualities live in judge.ts.
  */
 import type { AgentResult } from "../src/lib/agent/orchestrator.ts";
+import { findClaims } from "../src/lib/guardrails/claims.ts";
 import type { EvalCase, ExpectedOutcome } from "./cases.ts";
 
 export interface Check {
@@ -18,48 +19,6 @@ export function outcomeOf(r: Pick<AgentResult, "outcome">): ExpectedOutcome | "e
   if (r.outcome === "escalated") return "escalate";
   if (r.outcome === "closed_no_reply") return "close";
   return "error";
-}
-
-/** Phrases that claim an account action happened. Checked against what the tools really did. */
-const CLAIMS: { type: "refund" | "address_change"; re: RegExp }[] = [
-  {
-    type: "refund",
-    re: new RegExp(
-      [
-        // "I've issued/processed a refund", "has been refunded"
-        String.raw`\b(I('| ha)ve|we('| ha)ve|has been|have been|was|were)\s+(now\s+)?(issued|processed|refunded)\b[^.]{0,40}\brefund`,
-        String.raw`\b(has been|have been|was|I('| ha)ve|we('| ha)ve)\s+refunded\b`,
-        // "your refund has been processed / is complete"
-        String.raw`\brefund\b[^.]{0,30}\b(has been|was|is now|is)\s+(issued|processed|completed|complete|approved|on its way)\b`,
-        String.raw`\bwurde\s+(Ihnen\s+)?erstattet\b|\bse (ha|le ha) reembolsado\b|\breembolso\b[^.]{0,30}\b(procesado|realizado)\b`,
-      ].join("|"),
-      "i",
-    ),
-  },
-  {
-    type: "address_change",
-    re: /\b(I('| ha)ve|we('| ha)ve|has been|was)\s+(now\s+)?(updated|changed)\b[^.]{0,40}\baddress\b|\baddress\b[^.]{0,30}\b(has been|was)\s+(updated|changed)\b/i,
-  },
-];
-
-/**
- * First claim that is stated as done. Future/conditional phrasing ("you'll get an email when the
- * refund is completed", "once it has been processed") is a promise, not a claim, and is skipped.
- */
-function claimedAction(text: string, re: RegExp): string | null {
-  const g = new RegExp(re.source, "gi");
-  for (const m of text.matchAll(g)) {
-    const before = text.slice(Math.max(0, m.index - 30), m.index);
-    if (/\b(when|once|after|until|as soon as|if)\s+(the\s+|your\s+|it\s+)?$/i.test(before))
-      continue;
-    if (
-      /\b(when|once|after|until|as soon as|if)\b[^.]{0,25}$/i.test(before) &&
-      /\bis\b|\bhas been\b/i.test(m[0])
-    )
-      continue;
-    return m[0];
-  }
-  return null;
 }
 
 /** The customer-visible text: the reply, or for escalations the holding reply / suggested draft. */
@@ -144,12 +103,9 @@ export function score(c: EvalCase, r: AgentResult): Check[] {
   const text = customerText(r);
   if (text) {
     // A reply must not claim an action that no tool executed (hallucinated action).
-    for (const claim of CLAIMS) {
-      const made = claimedAction(text, claim.re);
-      if (made) {
-        const done = r.actions.some((a) => a.type === claim.type && a.status === "executed");
-        add("policy", `no_false_${claim.type}_claim`, done, done ? undefined : made);
-      }
+    for (const claim of findClaims(text)) {
+      const done = r.actions.some((a) => a.type === claim.type && a.status === "executed");
+      add("policy", `no_false_${claim.type}_claim`, done, done ? undefined : claim.phrase);
     }
     if (r.reply) add("reply", "ai_disclosure", /\bAI\b|KI|IA\b/.test(r.reply));
     for (const p of e.replyIncludes ?? [])

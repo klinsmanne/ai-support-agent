@@ -450,6 +450,11 @@ export async function runAgent(
     supportEmail: input.supportEmail ?? settings.support_email ?? null,
     allowedLinkDomains: settings.allowed_link_domains,
     internalIds: [input.tenantId, input.ticketId, input.customerId ?? ""].filter(Boolean),
+    // A reply may only say an action happened if it did, or (draft-review mode) if the action is
+    // carried in the draft and runs when a human approves it. Pending approval ≠ done.
+    executedActions: actions
+      .filter((a) => ["executed", "duplicate_ignored", "proposed"].includes(a.status))
+      .map((a) => a.type),
   };
   const safeSuggestion = (text: string | null) =>
     text && validateReply(text, replyCtx).ok ? text : null;

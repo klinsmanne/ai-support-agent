@@ -67,14 +67,15 @@ Chat follows the same path from step 5, synchronously, with a verification step 
 
 ## 4. Model choice
 
-| Role                   | Choice                                   | Why                                                                                    |
-| ---------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------- |
-| Agent + classification | `gemini-3.8-flash` (free tier)           | Most capable free Gemini model; function calling + structured output; 1M context.      |
-| Fallback               | Groq `openai/gpt-oss-120b`               | Free, fast, strong tool use; independent provider for resilience.                      |
-| Embeddings             | `gemini-embedding-2` @ 768 dims          | Free, multilingual, 768 dims fits pgvector efficiently.                                |
-| Claude (inactive)      | `claude-sonnet-5-5` / `claude-haiku-5-5` | Adapter ready; enabled by one env var; included in model comparison if a key is added. |
+| Role                       | Choice                                    | Why                                                                                    |
+| -------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------- |
+| Agent (chat)               | `gemini-3.5-flash-lite` (free tier)       | Measured: 98% of 47 eval cases, 0 safety failures, 4.0 s p50 (ADR-022).                |
+| Agent (email) + classifier | Groq `openai/gpt-oss-20b`                 | Measured: 96%, 0 safety failures, 2.2 s p50; no training on inputs (ADR-020).          |
+| Overflow                   | Gemini 3.8 / 3.6 Flash, Groq gpt-oss-120b | Used when the primaries hit free-tier limits; still being measured.                    |
+| Embeddings                 | `gemini-embedding-2` @ 768 dims           | Free, multilingual, 768 dims fits pgvector efficiently.                                |
+| Claude (inactive)          | `claude-sonnet-5-5` / `claude-haiku-5-5`  | Adapter ready; enabled by one env var; included in model comparison if a key is added. |
 
-This is a starting hypothesis. **The final choice is made with data** from the eval suite (milestone I): quality, policy compliance, latency, and estimated cost per ticket across every available free model. Facts: `docs/research/FREE_TIER_RESEARCH.md`.
+The original hypothesis (Gemini 3.8 Flash primary) was replaced **with data** from the eval suite (milestone I, `evals/REPORT.md`, ADR-022): quality, policy compliance, latency, and estimated cost per ticket. Facts: `docs/research/FREE_TIER_RESEARCH.md`.
 
 ## 5. Security approach (summary — full detail in THREAT_MODEL.md)
 

@@ -6,7 +6,7 @@
  * Resumable: cases already scored for this prompt version + model are skipped, so free-tier
  * daily quotas can be spread over several runs/days. A daily quota hit stops the run cleanly.
  *
- * Usage: npm run eval -- --model groq:openai/gpt-oss-120b [--only id1,id2] [--pace 40000] [--force]
+ * Usage: npm run eval -- --model groq:openai/gpt-oss-120b [--only id1,id2 | --sample] [--pace 40000] [--force]
  */
 import "../scripts/load-env.ts";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
@@ -19,7 +19,7 @@ import { buildChain, type LLMConfig } from "../src/lib/llm/index.ts";
 import { estimateCostUsd } from "../src/lib/llm/pricing.ts";
 import { ModelRouter, RouterExhaustedError, retryHintMs } from "../src/lib/llm/router.ts";
 import { loadTenantFolders } from "../src/lib/tenants/load.ts";
-import { CASES, type EvalCase } from "./cases.ts";
+import { CASES, SAMPLE_IDS, type EvalCase } from "./cases.ts";
 import { JUDGE_VERSION, judge } from "./judge.ts";
 import { compact, expand, type CompactResult } from "./compact.ts";
 import { casePassed, score, type Check } from "./score.ts";
@@ -57,11 +57,15 @@ const { values } = parseArgs({
     only: { type: "string" },
     pace: { type: "string" },
     force: { type: "boolean", default: false },
-    /** Only (re-)judge stored records whose judge call failed or is missing; no agent runs. */
+    /** Run only the fixed 15-case sample (for models whose free tier can't fit the full suite). */
+    sample: { type: "boolean", default: false },
+    /** Only (re-)judge stored records whose judge is missing, failed or from an older judge version. */
     "judge-only": { type: "boolean", default: false },
     judge: {
       type: "string",
-      default: process.env.EVAL_JUDGE ?? "gemini:gemini-3.6-flash,gemini:gemini-3.8-flash",
+      // Not one of the compared models, and on its own free-tier quota, so grading never eats the
+      // candidates' daily requests (Gemini Flash allows only a few per day).
+      default: process.env.EVAL_JUDGE ?? "groq:qwen/qwen3.8-27b",
     },
   },
 });
@@ -129,7 +133,10 @@ const readRecords = (): EvalRecord[] =>
 if (values["judge-only"]) {
   const latest = new Map(readRecords().map((r) => [r.caseId, r]));
   const pending = [...latest.values()].filter(
-    (r) => r.status === "scored" && r.reply && (!r.judge || "error" in r.judge),
+    (r) =>
+      r.status === "scored" &&
+      r.reply &&
+      (!r.judge || "error" in r.judge || r.judgeVersion !== JUDGE_VERSION),
   );
   console.log(`${values.model}: judging ${pending.length} stored replies`);
   for (const rec of pending) {
@@ -146,7 +153,7 @@ if (values["judge-only"]) {
   process.exit(0);
 }
 
-const only = values.only?.split(",");
+const only = values.sample ? [...SAMPLE_IDS] : values.only?.split(",");
 const todo = CASES.filter((c) => (!only || only.includes(c.id)) && !done.has(c.id));
 const pace = Number(values.pace ?? (values.model.startsWith("groq:") ? 40_000 : 15_000));
 const tenants = loadTenantFolders(join(import.meta.dirname, "..", "tenants"));
