@@ -25,7 +25,8 @@ _Last updated: 2026-11-05_
 - Nothing in flight. **Shipped 2026-11-05:**
   - final docs (PR #17);
   - portfolio pack (PR #18): `/demo` 2-minute narrated video, PRD, business case (ROI/TCO/SWOT), Python + DuckDB SQL eval analysis with a CI job, reproducible video pipeline;
-  - the repo is public.
+  - the repo is public, with `main` protected by a ruleset (PRs + 4 required checks) and secret scanning, push protection and Dependabot security fixes on;
+  - escalation notifications (instant + daily digest, PR #21), live-tested.
 - **Open:**
   - Gemini Flash (15-case sample) and gpt-oss-120b eval results (free quota; `npm run eval:report` + small commit);
   - nothing else: the second alert channel (ntfy) and the dependency upgrades are done (ADR-026).
