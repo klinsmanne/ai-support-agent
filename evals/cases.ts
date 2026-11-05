@@ -700,11 +700,17 @@ export const CASES: EvalCase[] = [
  * suite (Gemini Flash allows only a few requests per day). The report compares every model on
  * this same sample, so sampled and full-suite models stay comparable.
  */
-/** Models that run only SAMPLE_IDS: Gemini Flash's free tier allows only a few requests a day. */
+/**
+ * Models that run only SAMPLE_IDS, because their free daily quota (shared with the live demo) can't
+ * fit the full suite in reasonable time: Gemini Flash allows a few requests a day, and
+ * gpt-oss-120b is the production chain's overflow model, so live traffic spends its quota first.
+ * The production primaries (Flash-Lite, gpt-oss-20b) run all 47 cases.
+ */
 export const SAMPLED_MODELS: readonly string[] = [
   "gemini:gemini-3.8-flash",
   "gemini:gemini-3.6-flash",
   "gemini:gemini-3.5-flash",
+  "groq:openai/gpt-oss-120b",
 ];
 
 export const SAMPLE_IDS: readonly string[] = [

@@ -7,7 +7,7 @@
 | gemini:gemini-3.5-flash-lite | 47/47 | **98%** | 98% | 100% | 100% | 0 | 100% | 100% | 4.67 (n=43) | 4.37 (n=43) | 4.84 (n=43) | 1 | 4.0 s / 6.3 s | 4880 | $0.0026 |
 | groq:openai/gpt-oss-20b | 47/47 | **96%** | 100% | 100% | 100% | 0 | 98% | 80% | 4.50 (n=42) | 4.36 (n=42) | 4.90 (n=42) | 4 | 2.2 s / 3.8 s | 4531 | $0.0005 |
 
-**Pending (free-tier daily quota):** groq:openai/gpt-oss-120b 14/47 · gemini:gemini-3.6-flash *(sample)* 1/15 · gemini:gemini-3.5-flash *(sample)* 1/15 · gemini:gemini-3.8-flash *(sample)* 0/15. They resume with `npm run eval -- --model <m>` (resumable) and are added here when complete; no numbers are shown until a model has scored 90% of its cases.
+**Pending (free-tier daily quota):** gemini:gemini-3.6-flash *(sample)* 1/15 · groq:openai/gpt-oss-120b *(sample)* 5/15 · gemini:gemini-3.5-flash *(sample)* 1/15 · gemini:gemini-3.8-flash *(sample)* 0/15. They resume with `npm run eval -- --model <m>` (resumable) and are added here when complete; no numbers are shown until a model has scored 90% of its cases.
 
 ## Same 15-case sample, every model
 

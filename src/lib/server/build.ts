@@ -8,6 +8,8 @@ import { buildChain, createClassifierRouter, createRouter } from "../llm/index.t
 import type { PipelineDeps } from "../pipeline/ingest.ts";
 import { SupabaseStore } from "../pipeline/supabase-store.ts";
 import { SupabaseChatStore, type ChatStore } from "../channels/chat/store.ts";
+import { fanOut, ntfySender } from "../pipeline/alert-channels.ts";
+import type { AlertSend } from "../pipeline/alerts.ts";
 
 /**
  * Composition root: builds every server dependency from validated env vars. The app uses the
@@ -86,12 +88,16 @@ export function buildContainer(source: Record<string, string | undefined>): Cont
         repo: env.GEMINI_PAID_TIER === "true" ? repo : new SupabaseRepo(db, null),
       },
       sender: gmail,
-      alert:
-        gmail && env.ALERT_EMAIL
-          ? async (subject, body) => {
-              await gmail.sendNew(env.ALERT_EMAIL!, subject, body);
-            }
-          : null,
+      // Two independent channels (ADR-026): email, plus ntfy push so a Gmail outage still alerts.
+      alert: (() => {
+        const channels: AlertSend[] = [];
+        if (gmail && env.ALERT_EMAIL)
+          channels.push(async (subject, body) => {
+            await gmail.sendNew(env.ALERT_EMAIL!, subject, body);
+          });
+        if (env.ALERT_NTFY_TOPIC) channels.push(ntfySender(env.ALERT_NTFY_TOPIC));
+        return channels.length ? fanOut(channels) : null;
+      })(),
       inboxAddress: inbox,
       defaultTenantSlug: DEFAULT_TENANT_SLUG,
       csatUrl: appUrl ? (ticketId: string) => `${appUrl}/csat/${ticketId}` : undefined,

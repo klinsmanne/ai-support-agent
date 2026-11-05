@@ -2,7 +2,7 @@
   "promptVersion": "agent-v1.3.0",
   "promptHash": "839e4c5ef4c7cfcc",
   "totalCases": 47,
-  "generatedAt": "2026-11-05T18:32:08.588Z",
+  "generatedAt": "2026-11-05T19:15:17.332Z",
   "models": [
     {
       "model": "gemini:gemini-3.5-flash-lite",
@@ -191,71 +191,6 @@
       "costPerTicketUsd": 0.0005242553191489363
     },
     {
-      "model": "groq:openai/gpt-oss-120b",
-      "cases": 15,
-      "scored": 14,
-      "infra": 1,
-      "passRate": 0.8571428571428571,
-      "sampled": false,
-      "target": 47,
-      "complete": false,
-      "sample": {
-        "pass": 5,
-        "total": 5,
-        "policyFailures": 0
-      },
-      "metrics": {
-        "outcome": {
-          "pass": 14,
-          "total": 15
-        },
-        "classification": {
-          "pass": 5,
-          "total": 5
-        },
-        "tool_use": {
-          "pass": 10,
-          "total": 10
-        },
-        "policy": {
-          "pass": 37,
-          "total": 37
-        },
-        "reply": {
-          "pass": 24,
-          "total": 25
-        },
-        "retrieval": {
-          "pass": 7,
-          "total": 7
-        }
-      },
-      "categories": {
-        "easy": {
-          "pass": 7,
-          "total": 8
-        },
-        "hard": {
-          "pass": 5,
-          "total": 6
-        }
-      },
-      "policyFailures": 0,
-      "judge": {
-        "faithfulness": 0,
-        "helpfulness": 0,
-        "tone": 0,
-        "unperformedClaims": 0,
-        "judged": 0
-      },
-      "latency": {
-        "p50": 2945,
-        "p95": 5669
-      },
-      "tokensPerTicket": 5420.785714285715,
-      "costPerTicketUsd": 0.0011495714285714286
-    },
-    {
       "model": "gemini:gemini-3.6-flash",
       "cases": 2,
       "scored": 1,
@@ -311,6 +246,71 @@
       },
       "tokensPerTicket": 6137,
       "costPerTicketUsd": 0.006883
+    },
+    {
+      "model": "groq:openai/gpt-oss-120b",
+      "cases": 6,
+      "scored": 5,
+      "infra": 1,
+      "passRate": 1,
+      "sampled": true,
+      "target": 15,
+      "complete": false,
+      "sample": {
+        "pass": 5,
+        "total": 5,
+        "policyFailures": 0
+      },
+      "metrics": {
+        "outcome": {
+          "pass": 6,
+          "total": 6
+        },
+        "classification": {
+          "pass": 3,
+          "total": 3
+        },
+        "tool_use": {
+          "pass": 4,
+          "total": 4
+        },
+        "policy": {
+          "pass": 18,
+          "total": 18
+        },
+        "reply": {
+          "pass": 10,
+          "total": 10
+        },
+        "retrieval": {
+          "pass": 2,
+          "total": 2
+        }
+      },
+      "categories": {
+        "easy": {
+          "pass": 3,
+          "total": 3
+        },
+        "hard": {
+          "pass": 2,
+          "total": 2
+        }
+      },
+      "policyFailures": 0,
+      "judge": {
+        "faithfulness": 0,
+        "helpfulness": 0,
+        "tone": 0,
+        "unperformedClaims": 0,
+        "judged": 0
+      },
+      "latency": {
+        "p50": 3530,
+        "p95": 4715
+      },
+      "tokensPerTicket": 5960.2,
+      "costPerTicketUsd": 0.0012385999999999999
     },
     {
       "model": "gemini:gemini-3.5-flash",

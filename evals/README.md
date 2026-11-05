@@ -9,7 +9,7 @@ How we know the agent is good enough to ship, and which model to run it on.
 | Gemini 3.5 Flash-Lite |              **98%** |               0 |                4.67 / 4.37 / 4.84 |          4.0 s |                    $0.0026 |
 | Groq gpt-oss-20b      |              **96%** |               0 |                4.50 / 4.36 / 4.90 |          2.2 s |                    $0.0005 |
 
-**Decision (ADR-022):** chat runs Flash-Lite first, email runs gpt-oss-20b (it doesn't train on inputs). Gemini 3.8/3.6/3.5 Flash (15-case sample) and gpt-oss-120b are still running on free-tier quota and get added to the report as they finish.
+**Decision (ADR-022):** chat runs Flash-Lite first, email runs gpt-oss-20b (it doesn't train on inputs). Gemini 3.8/3.6/3.5 Flash and gpt-oss-120b (15-case sample) are still running on free-tier quota, shared with the live demo and get added to the report as they finish.
 
 **What the evals found and changed:**
 

@@ -68,3 +68,6 @@ scripts/demo-video/scenes.json
 scripts/demo-video/lines.json
 scripts/demo-video/list.txt
 scripts/demo-video/demo.mp4
+
+# Private alert subscription (ntfy topic is a secret)
+.alerts/

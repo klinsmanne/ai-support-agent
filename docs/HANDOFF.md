@@ -11,7 +11,7 @@ _For the client's support lead, engineering lead and operations owner. Fictional
 | Second client already configured   | Cadence Analytics, proving a new client is configuration only ([ONBOARDING_RUNBOOK.md](ONBOARDING_RUNBOOK.md))         |
 | Quality gate                       | 47-case eval suite, report, and a CI gate that blocks unsafe or untested prompt changes ([evals/](../evals/README.md)) |
 | Security review                    | [THREAT_MODEL.md](THREAT_MODEL.md) (STRIDE + OWASP LLM Top 10, abuse cases, residual risks)                            |
-| Operations docs                    | [DEPLOYMENT.md](DEPLOYMENT.md) (runbook, rollback, checks), [DECISIONS.md](DECISIONS.md) (25 ADRs)                     |
+| Operations docs                    | [DEPLOYMENT.md](DEPLOYMENT.md) (runbook, rollback, checks), [DECISIONS.md](DECISIONS.md) (26 ADRs)                     |
 
 ## 2. How it behaves (what to tell your team)
 
@@ -60,7 +60,7 @@ _For the client's support lead, engineering lead and operations owner. Fictional
 | Free-tier limits hit                         | Replies fall back to the next model; if all are exhausted, tickets go to humans             | ADR-015, ADR-022                        |
 | Bad deploy                                   | Vercel → Deployments → previous → Promote to Production (instant)                           | DEPLOYMENT.md                           |
 
-Failure alerts go to the owner's email (ALERT_EMAIL) on the 3rd failure of a kind in a clock hour, at most once an hour.
+Failure alerts go to the owner's email (`ALERT_EMAIL`) **and** as a phone push through the ntfy app (`ALERT_NTFY_TOPIC`), on the 3rd failure of a kind in a clock hour and at most once an hour. If Gmail itself is down, the push still arrives (ADR-026).
 
 ## 5. Access, secrets and rotation
 
@@ -78,7 +78,6 @@ Failure alerts go to the owner's email (ALERT_EMAIL) on the 3rd failure of a kin
 - **The action-claim check is pattern-based:** it checks the action type, not the amount (ADR-023). Human review and the eval judge are the backstops.
 - **Email retrieval is keyword-only** (no-training rule), so it can miss a help-center article when the customer uses very different words. Chat also uses vector search.
 - **Gmail OAuth app is unverified:** fine for one inbox (under 100 users). Production at scale needs Google's verification.
-- **Alerts go to one email address.** A second channel (SMS or Slack) is still open.
 - **Eval results for the larger Gemini Flash models and gpt-oss-120b are pending** (free-tier quota). They're added to the report as they complete.
 
 ## 7. Moving beyond the pilot
@@ -89,7 +88,7 @@ Failure alerts go to the owner's email (ALERT_EMAIL) on the 3rd failure of a kin
 | Paid Supabase and Vercel plans                  | Backups, higher limits, no pause risk (check current pricing)                                                      |
 | Real refund and carrier APIs                    | Behind the same `issue_refund` / tracking tool interfaces and policy engine                                        |
 | Google OAuth verification, or a Workspace inbox | Removes the unverified-app warning                                                                                 |
-| Second alert channel and an uptime monitor      | Faster incident response                                                                                           |
+| An external uptime monitor                      | Detects a fully down site even when no failure is logged                                                           |
 | The client's own eval cases from real tickets   | Measures quality on their actual mix before widening auto-send                                                     |
 
 ## 8. Contacts

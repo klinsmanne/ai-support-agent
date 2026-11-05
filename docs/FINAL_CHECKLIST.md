@@ -120,7 +120,7 @@ Every item from the original request, with its status and the evidence. Verified
 
 ## Open items
 
+- ✅ Done since: second alert channel (ntfy push, ADR-026); dependency upgrades (React 19.3.1, ESLint 10, TypeScript 6.0, @types/node 26; TypeScript 7 deferred until linting supports it).
+
 - ⏳ **Eval results** for Gemini 3.8/3.6/3.5 Flash (15-case sample) and gpt-oss-120b: running on free quota. Add them with `npm run eval:report` and a small commit.
-- **Second alert channel** (an addition beyond the spec; the spec's email alerts are done).
-- **Dependabot PRs #2–#6:** TypeScript 7 and ESLint 10 are major versions, so test before merging.
 - **Gmail OAuth verification by Google:** needed only beyond 100 users or for a client's own domain.

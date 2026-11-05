@@ -7,12 +7,11 @@ export const ALERT_THRESHOLD = 3;
 export type AlertSend = (subject: string, body: string) => Promise<void>;
 
 /**
- * Counts a failure and emails the operator when the same kind repeats (≥ 3 in the same clock
+ * Counts a failure and alerts the operator when the same kind repeats (≥ 3 in the same clock
  * hour — fixed windows, so failures straddling the hour can be missed), at most once per kind
- * per hour so an outage doesn't flood the inbox. Known limit: alerts go out through Gmail, so a
- * Gmail outage (e.g. an expired refresh token) can't alert by email; the dashboard still shows
- * "needs attention" tickets. Uses the same atomic counters as
- * rate limiting, so concurrent serverless instances agree. Never throws: alerting must not turn
+ * per hour so an outage doesn't flood the inbox. Alerts go to email and to ntfy push
+ * (alert-channels.ts), so a Gmail outage still reaches the operator. Uses the same atomic
+ * counters as rate limiting, so concurrent serverless instances agree. Never throws: alerting must not turn
  * a handled failure into an unhandled one. Details are PII-masked before they leave the system.
  */
 export async function reportFailure(
