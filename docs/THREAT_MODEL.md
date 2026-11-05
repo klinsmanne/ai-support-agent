@@ -4,15 +4,15 @@ _v1.0, 2026-11-04 · Method: assets → trust boundaries → STRIDE per boundary
 
 ## 1. What we protect
 
-| Asset                                   | Why it matters                                                     |
-| --------------------------------------- | ------------------------------------------------------------------ |
-| Customer data (orders, emails, history) | Privacy; one customer must never see or change another's data      |
-| Money movement (refunds)                | Direct financial loss; the main target of social engineering       |
-| Tenant isolation                        | A client must never see another client's tickets, KB or settings   |
-| The support inbox and sender reputation | A hijacked agent could spam or phish from a trusted address        |
-| Secrets (API keys, Gmail refresh token) | Full account takeover of the providers                             |
-| Free-tier quotas                        | Exhausting them is a cheap denial of service                       |
-| Operator trust                          | Dashboard actions (approve/send) must be the operator's own intent |
+| Asset                                                     | Why it matters                                                     |
+| --------------------------------------------------------- | ------------------------------------------------------------------ |
+| Customer data (orders, emails, history)                   | Privacy; one customer must never see or change another's data      |
+| Money movement (refunds)                                  | Direct financial loss; the main target of social engineering       |
+| Tenant isolation                                          | A client must never see another client's tickets, KB or settings   |
+| The support inbox and sender reputation                   | A hijacked agent could spam or phish from a trusted address        |
+| Secrets (API keys, Gmail refresh token, ntfy alert topic) | Full account takeover of the providers                             |
+| Free-tier quotas                                          | Exhausting them is a cheap denial of service                       |
+| Operator trust                                            | Dashboard actions (approve/send) must be the operator's own intent |
 
 ## 2. Trust boundaries
 
@@ -81,7 +81,7 @@ Everything that crosses from the left column is **data, never instructions** —
 - **Free-tier availability** is the largest operational risk: a quota outage sends tickets to humans (by design) rather than failing silently, and operators get an email after 3 failures/hour.
 - **`unsafe-inline` scripts** (ADR-021): acceptable while all rendered content is React-escaped; move to nonces if user-generated HTML is ever rendered.
 - **Paraphrased leakage** can evade the output validator; mitigated by tools that never return other customers' data in the first place.
-- **Alerts share Gmail:** a Gmail outage (e.g. expired refresh token) can't alert by email; the dashboard still shows `needs_attention`. Add a second channel in J.
+- **Alert channels:** alerts fan out to email and ntfy push (ADR-026), so a Gmail outage still alerts. The ntfy topic is a secret: anyone who learns it can read alerts, which carry only PII-masked failure summaries.
 - **`GEMINI_PAID_TIER=true`** puts Gemini back on the email path; it is logged at startup and must only be set on a billing-enabled project.
 - **Gmail OAuth app in Testing mode** until published (refresh token expires every 7 days) — milestone J.
 - Evals for hallucinated actions and multilingual injection — milestone I.

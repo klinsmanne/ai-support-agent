@@ -165,3 +165,4 @@ Architecture decision records (ADRs) — short, with context and trade-offs. New
   - React 19.3.1, ESLint 10, @types/node 26 and TypeScript **6.0**.
   - TypeScript 7 (the native rewrite) was tested and rejected for now, because typescript-eslint supports TypeScript below 6.1.
   - Dependabot ignores TypeScript ≥ 6.1 until that changes.
+  - Known peer mismatch: eslint-config-next 16.4.4 pulls in plugins (import, jsx-a11y, react) that still declare `eslint ≤ 9`. They work under ESLint 10 (verified: every rule family fires), and `npm ci` installs from the lockfile without errors, but a fresh `npm install` may print peer warnings. Revisit when eslint-config-next widens its range.

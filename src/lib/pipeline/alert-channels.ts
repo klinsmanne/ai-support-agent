@@ -27,6 +27,12 @@ export function ntfySender(topic: string, fetchFn: typeof fetch = fetch): AlertS
 export function fanOut(channels: AlertSend[]): AlertSend {
   return async (subject, body) => {
     const results = await Promise.allSettled(channels.map((send) => send(subject, body)));
+    // Log which channel failed (by position only: an error could carry the secret ntfy topic),
+    // so a silently broken channel is visible in the logs even when another one delivered.
+    results.forEach((r, i) => {
+      if (r.status === "rejected")
+        console.warn(`alert channel ${i + 1} of ${channels.length} failed`);
+    });
     if (!results.some((r) => r.status === "fulfilled"))
       throw new Error("every alert channel failed");
   };
