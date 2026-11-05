@@ -4,6 +4,8 @@ import { GmailError, type GmailClient } from "./gmail-client.ts";
 import { parseGmailMessage } from "./parse.ts";
 
 export interface PollReport {
+  /** Another poll still holds the lease: this one did nothing. */
+  skipped?: "already_running";
   fetched: number;
   pending: number;
   results: { id: string; status: IngestResult["status"] | "error"; outcome?: string }[];
@@ -14,17 +16,41 @@ export interface PollReport {
 
 /** Processing budget per poll: each ticket can take up to ~45 s and the function has 300 s. */
 const MAX_PER_POLL = 4;
+/** Longer than the endpoint's 300 s limit, so a lease never expires while its poll still runs. */
+const LEASE_SECONDS = 330;
 const MAX_PENDING = 200;
 const MAX_TRIES = 3;
 
 type Pending = { id: string; tries: number };
 
 /**
- * One polling cycle (triggered every ~2 min by Supabase pg_cron → signed HTTPS call).
- * New message ids go into a persistent queue and the Gmail history cursor advances right away,
- * so a backlog larger than one cycle's budget drains over the next cycles instead of stalling.
+ * One polling cycle (triggered every ~2 min by Supabase pg_cron → signed HTTPS call). New message
+ * ids join a persistent queue, and the cursor and queue are saved at the end of the cycle, so a
+ * backlog larger than one cycle's budget drains over the next cycles instead of stalling. A
+ * lease makes overlapping cycles impossible: a cycle that finds one running returns at once.
  */
 export async function pollGmail(
+  gmail: GmailClient,
+  deps: PipelineDeps,
+  cursorTenantId: string,
+): Promise<PollReport> {
+  if (!(await deps.store.claimChannelLease(cursorTenantId, "email", LEASE_SECONDS)))
+    return {
+      skipped: "already_running",
+      fetched: 0,
+      pending: 0,
+      results: [],
+      swept: 0,
+      cursor: null,
+    };
+  try {
+    return await pollOnce(gmail, deps, cursorTenantId);
+  } finally {
+    await deps.store.releaseChannelLease(cursorTenantId, "email").catch(() => {});
+  }
+}
+
+async function pollOnce(
   gmail: GmailClient,
   deps: PipelineDeps,
   cursorTenantId: string,

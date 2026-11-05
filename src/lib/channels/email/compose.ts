@@ -1,3 +1,4 @@
+import { markdownToPlainText } from "../../text/markdown.ts";
 import type { OutboundReply } from "../types.ts";
 
 /**
@@ -8,7 +9,8 @@ import type { OutboundReply } from "../types.ts";
 export function composeReplyMime(
   reply: OutboundReply,
   from: { email: string; name: string },
-  opts: { isReply?: boolean } = {},
+  /** stripMarkdown: model-written replies only; system emails (alerts, sign-in links) go as is. */
+  opts: { isReply?: boolean; stripMarkdown?: boolean } = {},
 ): string {
   const isReply = opts.isReply ?? true;
   const subject = !isReply
@@ -35,7 +37,8 @@ export function composeReplyMime(
   // Header injection guard: no CR/LF may survive inside a header value.
   for (const h of headers)
     if (/[\r\n]/.test(h)) throw new Error("header injection attempt blocked");
-  const body = Buffer.from(reply.body, "utf8").toString("base64").replace(/.{76}/g, "$&\r\n");
+  const text = (opts.stripMarkdown ?? true) ? markdownToPlainText(reply.body) : reply.body;
+  const body = Buffer.from(text, "utf8").toString("base64").replace(/.{76}/g, "$&\r\n");
   return `${headers.join("\r\n")}\r\n\r\n${body}`;
 }
 

@@ -361,4 +361,18 @@ export class SupabaseStore implements PipelineStore {
       "channel state",
     );
   }
+
+  async claimChannelLease(tenantId: string, channel: ChannelId, seconds: number) {
+    const { data, error } = await this.db.rpc("claim_channel_lease", {
+      p_tenant_id: tenantId,
+      p_channel: channel,
+      p_seconds: seconds,
+    });
+    if (error) throw new Error(`channel lease: ${error.message}`);
+    return data === true;
+  }
+
+  async releaseChannelLease(tenantId: string, channel: ChannelId) {
+    await this.db.rpc("release_channel_lease", { p_tenant_id: tenantId, p_channel: channel });
+  }
 }

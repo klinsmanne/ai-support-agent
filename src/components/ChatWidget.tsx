@@ -289,6 +289,11 @@ export function ChatWidget({ turnstileSiteKey }: { turnstileSiteKey?: string } =
           Send
         </button>
       </form>
+      {turnstile.needsClick && (
+        <p className="px-4 pt-2 text-xs" role="status">
+          Tick “Verify you are human” below to start the chat.
+        </p>
+      )}
       <div ref={turnstile.container} className="px-4 empty:hidden" />
       <p className="px-4 pb-2 text-[10px] text-zinc-500">
         AI assistant · fictional demo data only · don&apos;t share real personal information

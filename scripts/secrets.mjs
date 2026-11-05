@@ -8,6 +8,8 @@
  *   node scripts/secrets.mjs status          # which secrets are set (names only)
  *   node scripts/secrets.mjs sync            # write the local env file for `npm run dev`
  *   node scripts/secrets.mjs push-vercel ENV # copy secrets into Vercel (production|preview|development)
+ *   node scripts/secrets.mjs push-supabase-vault URL # store CRON_SECRET + the Gmail poll URL in
+ *                                                    # Supabase Vault (for the pg_cron poll job)
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { writeFileSync, chmodSync } from "node:fs";
@@ -66,6 +68,12 @@ function set(name, value) {
 
 const [cmd, arg] = process.argv.slice(2);
 
+/** A readable error and exit code instead of a stack trace. */
+function fail(message) {
+  console.error(`✗ ${message}`);
+  process.exit(1);
+}
+
 if (cmd === "set") {
   if (!VARS[arg]) throw new Error(`Unknown variable ${arg}`);
   const value = (await new Response(process.stdin).text()).trim();
@@ -90,6 +98,15 @@ if (cmd === "set") {
   for (const name of Object.keys(VARS)) {
     const v = get(name);
     if (v === undefined) continue;
+    // Development-only values must never reach production: Cloudflare's public Turnstile test
+    // keys (they always pass) and localhost URLs. Skipped, so production fails closed instead.
+    const devOnly =
+      (name.startsWith("TURNSTILE_") && /^[123]x0{10,}/.test(v)) ||
+      (name === "APP_URL" && /localhost|127\.0\.0\.1/.test(v));
+    if (arg === "production" && devOnly) {
+      console.log(`· ${name} skipped (development-only value)`);
+      continue;
+    }
     // Value goes via stdin, never as a CLI argument (which would show up in process lists).
     spawnSync("vercel", ["env", "rm", name, arg, "--yes"], { stdio: "ignore", cwd: root });
     const r = spawnSync(
@@ -105,7 +122,41 @@ if (cmd === "set") {
       `${r.status === 0 ? "✓" : "✗"} ${name} → Vercel ${arg}${r.status === 0 ? "" : `: ${r.stderr.trim()}`}`,
     );
   }
+} else if (cmd === "push-supabase-vault") {
+  // The SQL goes to the Supabase CLI on stdin, so the secret never appears in a command line,
+  // a file on disk, or the terminal.
+  const url = arg;
+  if (!/^https:\/\/[a-z0-9.-]+\/api\/channels\/gmail\/poll$/.test(url ?? ""))
+    fail("usage: push-supabase-vault https://<host>/api/channels/gmail/poll");
+  const secret = get("CRON_SECRET");
+  if (!secret || secret.length < 32) fail("CRON_SECRET missing in Keychain");
+  if (!/^[A-Za-z0-9_\-+/=]+$/.test(secret)) fail("unexpected characters in CRON_SECRET");
+  const q = "$" + "s" + "$"; // dollar-quote tag; values are validated above, so they can't contain it
+  const upsert = (name, value, description) => `
+    do $v$ begin
+      if exists (select 1 from vault.secrets where name = '${name}') then
+        perform vault.update_secret((select id from vault.secrets where name = '${name}'), ${q}${value}${q});
+      else
+        perform vault.create_secret(${q}${value}${q}, '${name}', '${description}');
+      end if;
+    end $v$;`;
+  const sql =
+    upsert("cron_secret", secret, "CRON_SECRET for the Gmail poll endpoint") +
+    upsert("gmail_poll_url", url, "App endpoint pg_cron calls to poll Gmail");
+  const r = spawnSync("supabase", ["db", "query", "--remote", "--file", "/dev/stdin", "--yes"], {
+    input: sql,
+    encoding: "utf8",
+    cwd: root,
+  });
+  if (r.status !== 0)
+    // stderr can echo the SQL, so the secret is redacted before anything is printed.
+    fail(
+      `Supabase Vault update failed: ${r.stderr.replaceAll(secret, "[redacted]").trim().slice(0, 300)}`,
+    );
+  console.log("✓ cron_secret and gmail_poll_url stored in Supabase Vault (values not shown)");
 } else {
-  console.log("usage: secrets.mjs set NAME | status | sync | push-vercel ENV");
+  console.log(
+    "usage: secrets.mjs set NAME | status | sync | push-vercel ENV | push-supabase-vault URL",
+  );
   process.exit(1);
 }

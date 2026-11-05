@@ -155,7 +155,7 @@ export class GmailClient implements ChannelSender {
     const raw = composeReplyMime(
       { channel: "email", threadKey: "", to, subject, body },
       { email: this.cfg.address, name: this.cfg.displayName },
-      { isReply: false },
+      { isReply: false, stripMarkdown: false },
     );
     const sent = await this.call<{ id: string }>("/messages/send", {
       method: "POST",

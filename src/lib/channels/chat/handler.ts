@@ -81,7 +81,8 @@ export async function handleChat(
   if (!session) {
     if (deps.verifyTurnstile && !(await deps.verifyTurnstile(req.turnstileToken, ip))) {
       return {
-        error: "We couldn't confirm you're a person. Please refresh the page and try again.",
+        error:
+          "We couldn't confirm you're a person. Tick “Verify you are human” below if it appears, then send your message again.",
         status: 403,
       };
     }
