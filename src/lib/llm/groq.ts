@@ -66,7 +66,15 @@ export class GroqProvider implements LLMProvider {
       // must not stretch one call to 3× its timeout past the ticket budget).
       const fits = !req.deadline || Date.now() + req.timeoutMs <= req.deadline;
       if (attempt < 3 && fits && res.status === 400 && isToolUseFailed(json, message)) continue;
-      const kind = res.status === 429 ? classify429(message) : errorKindFromStatus(res.status);
+      // A malformed *generation* is the model's failure, not a bad request: label it retryable
+      // so the router falls through to the next model (live test: an injection message made
+      // gpt-oss fail JSON generation and the ticket escalated as agent_error, no fallback tried).
+      const kind =
+        res.status === 429
+          ? classify429(message)
+          : res.status === 400 && isToolUseFailed(json, message)
+            ? "generation_failed"
+            : errorKindFromStatus(res.status);
       throw new LLMError(kind, message, this.id, this.model, res.status);
     }
 
@@ -108,10 +116,13 @@ export function isToolUseFailed(
   json: { error?: { code?: string } } | undefined,
   message: string,
 ): boolean {
-  // tool_use_failed: called a tool that wasn't offered; output_parse_failed: malformed generation.
+  // tool_use_failed: called a tool that wasn't offered; output_parse_failed / json_validate_failed:
+  // malformed generation ("Failed to generate JSON").
   return (
     json?.error?.code === "tool_use_failed" ||
     json?.error?.code === "output_parse_failed" ||
+    json?.error?.code === "json_validate_failed" ||
+    /failed to generate json/i.test(message) ||
     /tool call validation failed|failed to parse tool call|output parsing failed/i.test(message)
   );
 }

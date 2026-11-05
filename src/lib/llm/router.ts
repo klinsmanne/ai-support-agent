@@ -24,6 +24,9 @@ const COOLDOWN_MS: Record<string, number> = {
   quota_exhausted: 60 * 60_000,
   unavailable: 30_000,
   timeout: 30_000,
+  // One bad generation says nothing about the model's health: fall through, but no cooldown,
+  // so a crafted message can't switch a model off for everyone (security review).
+  generation_failed: 0,
 };
 
 /**

@@ -85,7 +85,15 @@ export interface LLMProvider {
  * free-tier quota is used up, so the model is useless for hours and must be skipped, not waited on.
  */
 export type LLMErrorKind =
-  "rate_limit" | "quota_exhausted" | "unavailable" | "timeout" | "bad_request" | "auth" | "unknown";
+  | "rate_limit"
+  | "quota_exhausted"
+  | "unavailable"
+  | "timeout"
+  /** The model produced malformed output for this request; another model may succeed. */
+  | "generation_failed"
+  | "bad_request"
+  | "auth"
+  | "unknown";
 
 /** Normalized provider error. `retryable` errors trigger fallback to the next model in the chain. */
 export class LLMError extends Error {
@@ -105,7 +113,8 @@ export class LLMError extends Error {
       this.kind === "rate_limit" ||
       this.kind === "quota_exhausted" ||
       this.kind === "unavailable" ||
-      this.kind === "timeout"
+      this.kind === "timeout" ||
+      this.kind === "generation_failed"
     );
   }
 }

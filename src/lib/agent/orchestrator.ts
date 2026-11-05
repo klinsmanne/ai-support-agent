@@ -217,8 +217,9 @@ export async function runAgent(
         attempts: error instanceof RouterExhaustedError ? error.attempts : undefined,
       },
     });
+    // Keep the injection flag visible to the human even when triage fails (live test finding).
     return escalate(
-      ["agent_error"],
+      heuristic.suspected ? ["suspected_prompt_injection", "agent_error"] : ["agent_error"],
       `Automatic triage failed (${errorMessage(error)}). Needs manual handling.`,
       null,
       {
@@ -437,7 +438,7 @@ export async function runAgent(
       },
     });
     return escalate(
-      ["agent_error"],
+      injection.suspected ? ["suspected_prompt_injection", "agent_error"] : ["agent_error"],
       `Agent could not finish: ${reason}. Classification: ${classification.summary}`,
       null,
       injection,

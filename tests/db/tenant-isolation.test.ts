@@ -397,6 +397,26 @@ describe("viewer privacy (public demo account)", () => {
     ).toBe(0);
   });
 
+  it("a viewer on a non-demo (real) tenant sees nothing, even demo-looking tickets (ADR-025)", async () => {
+    await db.exec(`update public.tenants set is_demo = false where id = '${HARBOR}'`);
+    try {
+      expect(
+        await visible(
+          HARBOR_VIEWER,
+          `select count(*)::int n from public.tickets where id in ('${REAL}','${DEMO}','${CHAT}')`,
+        ),
+      ).toBe(0);
+      expect(
+        await visible(
+          HARBOR_OWNER,
+          `select count(*)::int n from public.tickets where id in ('${REAL}','${DEMO}','${CHAT}')`,
+        ),
+      ).toBe(3); // staff unaffected
+    } finally {
+      await db.exec(`update public.tenants set is_demo = true where id = '${HARBOR}'`);
+    }
+  });
+
   it("owners still see every ticket of their tenant", async () => {
     expect(
       await visible(
