@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Python analysis environment (third-party packages, not our code).
+    "analysis/.venv/**",
   ]),
 ]);
 

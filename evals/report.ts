@@ -66,17 +66,17 @@ const quantile = (xs: number[], q: number) => {
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
 /**
+ * Latest record per case, re-scored with the current scorer so results stay comparable after
+ * scorer fixes. A sampled model is judged only on the sample, even if older runs scored others.
+ * Shared by the summary, the CI gate and the per-case export the Python analysis reads.
  * @param fallbackModel model id to use when the file has no records (derived from its name).
  */
-export function summarize(records: EvalRecord[], fallbackModel = "?"): ModelSummary {
+export function rescore(records: EvalRecord[], fallbackModel = "?"): EvalRecord[] {
   const model = records[0]?.model ?? fallbackModel;
   const sampled = SAMPLED_MODELS.includes(model);
-  const target = sampled ? SAMPLE_IDS.length : CASES.length;
   const latest = new Map<string, EvalRecord>();
   for (const r of records) latest.set(r.caseId, r); // files are append-only: last one wins
-  // Re-score with the current scorer so results stay comparable after scorer fixes. A sampled
-  // model is judged only on the sample, even if older runs scored other cases.
-  const all = [...latest.values()]
+  return [...latest.values()]
     .filter((r) => CASES.some((c) => c.id === r.caseId))
     .filter((r) => !sampled || SAMPLE_IDS.includes(r.caseId))
     .map((r) => {
@@ -87,6 +87,13 @@ export function summarize(records: EvalRecord[], fallbackModel = "?"): ModelSumm
       );
       return { ...r, checks, passed: casePassed(checks) };
     });
+}
+
+export function summarize(records: EvalRecord[], fallbackModel = "?"): ModelSummary {
+  const model = records[0]?.model ?? fallbackModel;
+  const sampled = SAMPLED_MODELS.includes(model);
+  const target = sampled ? SAMPLE_IDS.length : CASES.length;
+  const all = rescore(records, fallbackModel);
   const scored = all.filter((r) => r.status === "scored");
   const metrics = {} as ModelSummary["metrics"];
   const categories: ModelSummary["categories"] = {};
@@ -187,6 +194,39 @@ function main() {
     process.exit(1);
   }
   const models = loadSummaries(dir);
+
+  // Per-case export (current scorer, current judge) for the Python/SQL analysis in analysis/.
+  const rows = readdirSync(dir)
+    .filter((f) => f.endsWith(".jsonl"))
+    .flatMap((f) =>
+      rescore(
+        readFileSync(join(dir, f), "utf8")
+          .split("\n")
+          .filter(Boolean)
+          .map((l) => JSON.parse(l) as EvalRecord),
+        f
+          .replace(/\.jsonl$/, "")
+          .replace("__", ":")
+          .replace("__", "/"),
+      ).map((r) => ({
+        model: r.model,
+        caseId: r.caseId,
+        category: r.category,
+        status: r.status,
+        passed: r.status === "scored" && r.passed,
+        failedChecks: r.checks.filter((c) => !c.pass).map((c) => c.name),
+        policyFailures: r.checks.filter((c) => c.metric === "policy" && !c.pass).length,
+        outcome: r.outcome,
+        modelLatencyMs: r.modelLatencyMs,
+        costUsd: r.costUsd,
+        tokens: r.usage.inputTokens + r.usage.outputTokens,
+        judgeFaithfulness:
+          r.judgeVersion === JUDGE_VERSION && r.judge && !("error" in r.judge)
+            ? Number(r.judge.faithfulness)
+            : null,
+      })),
+    );
+  writeFileSync(join(dir, "cases.ndjson"), rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
 
   writeFileSync(
     join(dir, "summary.json"),

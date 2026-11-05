@@ -13,3 +13,5 @@ tenants/tenant.schema.json
 supabase/seed.sql
 
 evals/REPORT.md
+analysis/.venv
+analysis/output

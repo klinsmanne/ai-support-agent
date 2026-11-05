@@ -49,3 +49,22 @@ supabase/.branches
 
 # claude code personal settings
 .claude/settings.local.json
+
+# Python analysis environment
+analysis/.venv/
+__pycache__/
+.pytest_cache/
+.voice-samples/
+
+# Demo video pipeline: local tools and model files
+scripts/demo-video/kok/
+scripts/demo-video/node_modules/
+scripts/demo-video/*.onnx
+scripts/demo-video/*.bin
+scripts/demo-video/frames/
+scripts/demo-video/audio/
+scripts/demo-video/clips/
+scripts/demo-video/scenes.json
+scripts/demo-video/lines.json
+scripts/demo-video/list.txt
+scripts/demo-video/demo.mp4
