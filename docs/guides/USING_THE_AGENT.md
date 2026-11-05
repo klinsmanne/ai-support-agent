@@ -51,6 +51,15 @@ Then choose:
 - **Approve & send.** It sends the reply (edited or not). If the draft includes a refund or address change, that runs **first**, then the reply goes out.
 - **Reject — I'll handle it.** Nothing is sent, and you reply to the customer yourself.
 
+## Get notified about escalations
+
+In **Settings → Notifications**, enter your team's email address:
+
+- **Right away:** urgent escalations arrive by email. That covers a customer asking for a person, a very upset customer, legal or safety issues, refunds above the limit, and manipulation attempts.
+- **Every morning (13:00 UTC, which is 7 am US Central in winter and 8 am in summer):** a digest lists everything still waiting, oldest first.
+
+Each email has the reason, a short summary and a link straight to the ticket, never the customer's message itself. Leave the address empty to turn notifications off.
+
 ## Settings: how much the AI may do
 
 Only owners can change these. They take effect on the next ticket:

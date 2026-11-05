@@ -120,7 +120,7 @@ Every item from the original request, with its status and the evidence. Verified
 
 ## Open items
 
-- ✅ Done since: second alert channel (ntfy push, ADR-026); dependency upgrades (React 19.3.1, ESLint 10, TypeScript 6.0, @types/node 26; TypeScript 7 deferred until linting supports it).
+- ✅ Done since: escalation notifications to the client's team, instant for urgent and a daily digest (ADR-027); second alert channel (ntfy push, ADR-026); dependency upgrades (React 19.3.1, ESLint 10, TypeScript 6.0, @types/node 26; TypeScript 7 deferred until linting supports it).
 
 - ⏳ **Eval results** for Gemini 3.8/3.6/3.5 Flash (15-case sample) and gpt-oss-120b: running on free quota. Add them with `npm run eval:report` and a small commit.
 - **Gmail OAuth verification by Google:** needed only beyond 100 users or for a client's own domain.

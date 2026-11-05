@@ -11,7 +11,7 @@ _For the client's support lead, engineering lead and operations owner. Fictional
 | Second client already configured   | Cadence Analytics, proving a new client is configuration only ([ONBOARDING_RUNBOOK.md](ONBOARDING_RUNBOOK.md))         |
 | Quality gate                       | 47-case eval suite, report, and a CI gate that blocks unsafe or untested prompt changes ([evals/](../evals/README.md)) |
 | Security review                    | [THREAT_MODEL.md](THREAT_MODEL.md) (STRIDE + OWASP LLM Top 10, abuse cases, residual risks)                            |
-| Operations docs                    | [DEPLOYMENT.md](DEPLOYMENT.md) (runbook, rollback, checks), [DECISIONS.md](DECISIONS.md) (26 ADRs)                     |
+| Operations docs                    | [DEPLOYMENT.md](DEPLOYMENT.md) (runbook, rollback, checks), [DECISIONS.md](DECISIONS.md) (27 ADRs)                     |
 
 ## 2. How it behaves (what to tell your team)
 
@@ -33,7 +33,7 @@ _For the client's support lead, engineering lead and operations owner. Fictional
 
 ## 3. Daily and weekly operations
 
-**Daily (5 minutes, support lead)**
+**Daily (5 minutes, support lead).** Urgent escalations email the team as they happen, and a digest of everything waiting arrives at 13:00 UTC (7–8 am US Central) (Settings → Notifications, ADR-027).
 
 - Dashboard → Escalations: approve, edit or reject drafts. Approving a refund draft runs the refund first, then sends the reply.
 - Glance at the Overview: escalation rate and "needs attention" count.

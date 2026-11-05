@@ -166,3 +166,15 @@ Architecture decision records (ADRs) — short, with context and trade-offs. New
   - TypeScript 7 (the native rewrite) was tested and rejected for now, because typescript-eslint supports TypeScript below 6.1.
   - Dependabot ignores TypeScript ≥ 6.1 until that changes.
   - Known peer mismatch: eslint-config-next 16.4.4 pulls in plugins (import, jsx-a11y, react) that still declare `eslint ≤ 9`. They work under ESLint 10 (verified: every rule family fires), and `npm ci` installs from the lockfile without errors, but a fresh `npm install` may print peer warnings. Revisit when eslint-config-next widens its range.
+
+## ADR-027: Escalations notify the client's team (instant for urgent, daily digest for the rest)
+
+- **Context (found while using the demo):** "routed to a human" meant the ticket waited in the dashboard's Escalations queue, and nobody was told. A support lead who isn't watching the dashboard could miss a customer asking for a person, or a legal threat.
+- **Decision:** each client sets a team address in Settings → Notifications.
+  - **Instant email** for urgent reasons: a customer asks for a person, is very upset, mentions legal or safety, a refund is above the limit, or a suspected manipulation attempt. Capped at 20 an hour per client.
+  - **Daily digest** at 13:00 UTC (7–8 am US Central) of everything still pending, oldest first. pg_cron calls `/api/cron/escalation-digest` with the same `CRON_SECRET` as the inbox poll; the URL is derived from the poll URL in Vault, so there's no new secret.
+- **Privacy and safety:**
+  - Notifications carry the reason, the agent's summary with PII masked and **links removed**, and a dashboard link, never the customer's message text.
+  - A suspected manipulation attempt gets a fixed summary, so attacker-written text can't reach the team's inbox through the alert.
+  - The team address is readable only by the server: signed-in users, including the public demo account, have no column access in the database. Only owners see it in the dashboard; viewers see "on" or "off".
+- **Failure isolation:** a notification failure never affects the ticket. The system-failure alerts (ADR-026) still cover a Gmail outage.

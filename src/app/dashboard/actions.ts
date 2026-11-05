@@ -367,6 +367,12 @@ const SettingsInput = z.object({
   min_confidence_to_act: z.coerce.number().min(0).max(1),
   daily_ticket_cap: z.coerce.number().int().min(1).max(10_000),
   max_ai_replies_per_thread: z.coerce.number().int().min(1).max(20),
+  // Empty input turns notifications off (stored as null).
+  escalation_notify_email: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    z.email().max(254).nullable(),
+  ),
+  escalation_digest: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
 });
 
 export async function updateSettings(
@@ -374,7 +380,12 @@ export async function updateSettings(
   form: FormData,
 ): Promise<ActionResult> {
   const raw = Object.fromEntries(form);
-  const parsed = SettingsInput.safeParse({ kill_switch: "false", ...raw });
+  // Unticked checkboxes aren't submitted at all: default them to off.
+  const parsed = SettingsInput.safeParse({
+    kill_switch: "false",
+    escalation_digest: "false",
+    ...raw,
+  });
   if (!parsed.success)
     return {
       ok: false,

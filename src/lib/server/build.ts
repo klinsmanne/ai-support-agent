@@ -101,6 +101,10 @@ export function buildContainer(source: Record<string, string | undefined>): Cont
       inboxAddress: inbox,
       defaultTenantSlug: DEFAULT_TENANT_SLUG,
       csatUrl: appUrl ? (ticketId: string) => `${appUrl}/csat/${ticketId}` : undefined,
+      notifyTeam: gmail ? (to, subject, body) => gmail.sendNew(to, subject, body) : null,
+      ticketUrl: appUrl
+        ? (ticketId: string) => `${appUrl}/dashboard/tickets/${ticketId}`
+        : undefined,
     },
     defaultTenantId: async () => {
       const id = await store.tenantIdBySlug(DEFAULT_TENANT_SLUG);

@@ -6,6 +6,7 @@ import type { ModelRouter } from "../llm/router.ts";
 import { maskPII } from "../guardrails/pii.ts";
 import { reportFailure, type AlertSend } from "./alerts.ts";
 import type { PipelineStore, TicketRef } from "./store.ts";
+import { notifyUrgentEscalation, type TeamSend } from "./escalation-notify.ts";
 
 /**
  * The ticket pipeline, shared by every channel:
@@ -37,6 +38,10 @@ export interface PipelineDeps {
   defaultTenantSlug: string;
   /** Builds the public CSAT link for a ticket (optional). */
   csatUrl?: (ticketId: string) => string;
+  /** Emails the client's team about urgent escalations (ADR-027); null = off. */
+  notifyTeam?: TeamSend | null;
+  /** Dashboard link for a ticket, used in notifications. */
+  ticketUrl?: (ticketId: string) => string;
   now?: () => Date;
 }
 
@@ -324,13 +329,25 @@ export async function ingestMessage(
       }
     } else {
       // escalated / error: a human takes over with a summary and a suggested reply.
+      const reasonCodes = result.escalation?.reasons ?? ["agent_error"];
+      const summary = result.escalation?.summary ?? "Agent error";
       await store.createEscalation(tenantId, ticket.id, {
         runId,
-        reasonCodes: result.escalation?.reasons ?? ["agent_error"],
-        summary: result.escalation?.summary ?? "Agent error",
+        reasonCodes,
+        summary,
         investigation: investigation(result),
         suggestedReply: result.escalation?.suggestedReply ?? null,
         pendingAction: pendingActionOf(result),
+      });
+      // Urgent escalations reach the team now; the rest wait for the daily digest (ADR-027).
+      await notifyUrgentEscalation(store, deps.notifyTeam, {
+        tenantId,
+        brand: settings.brand_name,
+        to: settings.escalation_notify_email,
+        ticketId: ticket.id,
+        reasons: reasonCodes,
+        summary,
+        ticketUrl: deps.ticketUrl?.(ticket.id),
       });
       // A short holding reply keeps first-response time low while a human reviews.
       if (
