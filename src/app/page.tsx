@@ -70,6 +70,12 @@ export default function Home() {
               </a>
             )}
             <Link
+              href="/demo"
+              className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+            >
+              ▶ Watch the 2-minute demo
+            </Link>
+            <Link
               href="/login"
               className="rounded-lg px-4 py-2.5 text-sm font-medium text-zinc-700 hover:underline dark:text-zinc-300"
             >

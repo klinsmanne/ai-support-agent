@@ -49,3 +49,8 @@ supabase/.branches
 
 # claude code personal settings
 .claude/settings.local.json
+
+# Python analysis environment
+analysis/.venv/
+__pycache__/
+.pytest_cache/

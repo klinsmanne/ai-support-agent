@@ -10,6 +10,10 @@ A multi-tenant AI agent that handles customer-support tickets end to end. It rea
 
 Every customer, order and company in the demo is fictional.
 
+[![Watch the 2-minute demo](public/demo/poster.jpg)](https://ai-support-ops-agent.vercel.app/demo)
+
+**▶ [Watch the 2-minute demo](https://ai-support-ops-agent.vercel.app/demo)** (narrated, with captions)
+
 Built as a forward-deployed engagement for a fictional client, from discovery to handoff. It costs **$0**: free tiers only, no credit card anywhere.
 
 ---
@@ -177,9 +181,9 @@ npm run check            # lint + types + format + tests
 
 | For            | Read                                                                                                                                                                                                                                    |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The engagement | [Discovery](docs/DISCOVERY.md) → [Solution design](docs/SOLUTION_DESIGN.md) → [Decisions](docs/DECISIONS.md) → [Case study](docs/CASE_STUDY.md)                                                                                         |
+| The engagement | [Discovery](docs/DISCOVERY.md) → [PRD](docs/PRD.md) → [Business case (ROI, TCO, SWOT)](docs/BUSINESS_CASE.md) → [Solution design](docs/SOLUTION_DESIGN.md) → [Decisions](docs/DECISIONS.md) → [Case study](docs/CASE_STUDY.md)          |
 | Operating it   | [Handoff](docs/HANDOFF.md) · [Onboarding a new client](docs/ONBOARDING_RUNBOOK.md) · [Deployment](docs/DEPLOYMENT.md) · [Threat model](docs/THREAT_MODEL.md)                                                                            |
-| Quality        | [Evals](evals/README.md) · [Eval report](evals/REPORT.md)                                                                                                                                                                               |
+| Quality        | [Evals](evals/README.md) · [Eval report](evals/REPORT.md) · [Python + SQL analysis](analysis/output/ANALYSIS.md)                                                                                                                        |
 | Presenting it  | [Demo script](docs/DEMO_SCRIPT.md) · [Interview prep](docs/INTERVIEW_PREP.md)                                                                                                                                                           |
 | Beginners      | [How it works, in plain English](docs/guides/HOW_IT_WORKS.md) · [Using the agent](docs/guides/USING_THE_AGENT.md) · [Run it yourself](docs/guides/RUN_IT_YOURSELF.md) · [Working with Claude Code](docs/guides/CLAUDE_CODE_WORKFLOW.md) |
 | Reflection     | [What I learned](docs/WHAT_I_LEARNED.md) · [Beyond the spec](docs/BEYOND_THE_SPEC.md) · [Final checklist](docs/FINAL_CHECKLIST.md)                                                                                                      |
