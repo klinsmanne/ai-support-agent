@@ -22,13 +22,20 @@ _Last updated: 2026-11-05_
 
 ## In progress (resume here)
 
-- **Final docs (PR open):** README, ONBOARDING_RUNBOOK, HANDOFF, CASE_STUDY, DEMO_SCRIPT (2/5/15 min), INTERVIEW_PREP, CHANNEL_ADAPTERS, WHAT_I_LEARNED, BEYOND_THE_SPEC, FINAL_CHECKLIST, 4 beginner guides; 5 new project commands; scoped dashboard invites (ADR-025); live-test fixes (Groq JSON-generation fallback, injection reason kept when triage fails). Live tests 2026-11-05: normal, angry + refund, injection, second tenant, email — all pass (see docs/FINAL_CHECKLIST.md).
-- **Open:** Gemini Flash (15-case sample) + gpt-oss-120b eval results (free quota; `npm run eval:report` + small commit); second alert channel; Dependabot PRs #2–#6.
+- Nothing in flight. **Shipped 2026-11-05:**
+  - final docs (PR #17);
+  - portfolio pack (PR #18): `/demo` 2-minute narrated video, PRD, business case (ROI/TCO/SWOT), Python + DuckDB SQL eval analysis with a CI job, reproducible video pipeline;
+  - the repo is public.
+- **Open:**
+  - Gemini Flash (15-case sample) and gpt-oss-120b eval results (free quota; `npm run eval:report` + small commit);
+  - second alert channel;
+  - Dependabot PRs #2–#6.
+- **Career pack** (private, outside the repo): `~/Desktop/New Job App/2026/Portfolio Career Pack/`. Start with `00_START_HERE.md`.
 
 ## Next
 
-- Merge the final-docs PR; add the pending eval results when the free-quota runs finish
-- Optional: second alert channel; record the 2-minute demo video (docs/DEMO_SCRIPT.md)
+- Add the pending eval results when the free-quota runs finish
+- Optional: second alert channel; re-record the demo narration in your own voice (`.voice-samples/RECORD_THIS.md`, `scripts/demo-video/`)
 - Dependabot PRs #2–#6 (TypeScript 7 and ESLint 10 are majors — test before merging)
 
 ## Known issues

@@ -108,6 +108,16 @@ Every item from the original request, with its status and the evidence. Verified
 | Additions beyond the request                                                     |   ✅   | [BEYOND_THE_SPEC.md](BEYOND_THE_SPEC.md)                                                                         |
 | Project commands                                                                 |   ✅   | `/verify`, `/run-evals`, `/compare-models`, `/check-usage`, `/deploy`, `/onboard-customer`, `/new-session-recap` |
 
+## Portfolio additions (2026-11-05)
+
+| Item                                                         | Status | Where                                                                |
+| ------------------------------------------------------------ | :----: | -------------------------------------------------------------------- |
+| 2-minute narrated demo video                                 |   ✅   | https://ai-support-ops-agent.vercel.app/demo · `scripts/demo-video/` |
+| PRD                                                          |   ✅   | [PRD.md](PRD.md)                                                     |
+| Business case (value model, sensitivity, TCO, payback, SWOT) |   ✅   | [BUSINESS_CASE.md](BUSINESS_CASE.md)                                 |
+| Python + SQL analysis of eval data (tested in CI)            |   ✅   | [analysis/](../analysis/README.md)                                   |
+| Public repository                                            |   ✅   | https://github.com/klinsmanne/ai-support-agent                       |
+
 ## Open items
 
 - ⏳ **Eval results** for Gemini 3.8/3.6/3.5 Flash (15-case sample) and gpt-oss-120b: running on free quota. Add them with `npm run eval:report` and a small commit.
