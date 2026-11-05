@@ -49,14 +49,15 @@ export function buildChain(cfg: LLMConfig, opts: ChainOptions = {}): LLMProvider
     : cfg.LLM_PROVIDER === "gemini"
       ? [
           ...(cfg.LLM_MODEL ? [["gemini", cfg.LLM_MODEL] as [string, string]] : []),
-          // Interleave providers: free quotas are per model and per provider, so after the two best
-          // Gemini models a different provider is tried before older/smaller Gemini models.
+          // Measured models first (ADR-022, evals/REPORT.md): Flash-Lite and gpt-oss-20b passed
+          // 98% / 96% of the 47-case suite with zero safety failures. Models still being measured
+          // follow as overflow. Providers alternate because free quotas are per model and provider.
+          ["gemini", "gemini-3.5-flash-lite"],
+          ["groq", "openai/gpt-oss-20b"],
           ["gemini", "gemini-3.8-flash"],
           ["gemini", "gemini-3.6-flash"],
           ["groq", "openai/gpt-oss-120b"],
           ["gemini", "gemini-3.5-flash"],
-          ["gemini", "gemini-3.5-flash-lite"],
-          ["groq", "openai/gpt-oss-20b"],
         ]
       : [
           ...(cfg.LLM_MODEL ? [[cfg.LLM_PROVIDER, cfg.LLM_MODEL] as [string, string]] : []),
@@ -88,8 +89,7 @@ export function createRouter(cfg: LLMConfig, opts: ChainOptions = {}): ModelRout
 
 /**
  * Classification is a small structured-output call, so it goes to the fastest model first (Groq
- * gpt-oss-20b, ~0.7 s in live probes vs up to 50 s for Flash-Lite) and a different Groq model than the agent. Free-tier quotas are per model, so splitting the two call
- * types across models roughly doubles throughput before anything is rate-limited.
+ * gpt-oss-20b: 2.1 s p50 for a whole ticket in the evals, and ~0.7 s for this call in live probes).
  */
 export function createClassifierRouter(cfg: LLMConfig, opts: ChainOptions = {}): ModelRouter {
   const chain = buildChain(
@@ -99,7 +99,8 @@ export function createClassifierRouter(cfg: LLMConfig, opts: ChainOptions = {}):
         cfg.LLM_CHAIN ??
         (cfg.LLM_PROVIDER === "anthropic"
           ? "anthropic:claude-haiku-5-5,gemini:gemini-3.5-flash-lite,groq:openai/gpt-oss-20b"
-          : "groq:openai/gpt-oss-20b,gemini:gemini-3.5-flash-lite,gemini:gemini-3.6-flash,gemini:gemini-3.1-flash-lite"),
+          : // 120b last: the only other no-training model, so email classification has a fallback.
+            "groq:openai/gpt-oss-20b,gemini:gemini-3.5-flash-lite,gemini:gemini-3.6-flash,gemini:gemini-3.1-flash-lite,groq:openai/gpt-oss-120b"),
     },
     opts,
   );

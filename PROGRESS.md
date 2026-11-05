@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-11-04_
+_Last updated: 2026-11-05_
 
 ## Done
 
@@ -14,13 +14,14 @@ _Last updated: 2026-11-04_
 - **Milestone D — Agent (PR #9, merged).**
 - **Milestone E — Channels (PR #10, merged):** Gmail + chat pipeline, DMARC-aligned sender auth, at-most-once processing.
 - **Milestone G — Landing page (PR #12, merged).**
+- **Milestone H — Hardening (PR #13, merged):** data lifecycle (pg_cron), no-training email providers, Turnstile + CSP, failure alerts, THREAT_MODEL.
 - **Milestone F — Dashboard (PR #11, merged):** invite-only sign-in, read-only public demo (viewer privacy in RLS), trace view, approvals that execute the pending action first, settings + kill switch, KPI metrics.
 - **Gmail:** support inbox `integralplantsupport@gmail.com` connected (OAuth app in Testing mode; refresh token in Keychain — expires after 7 days until the app is published, which needs a live homepage + privacy URL).
 
 ## In progress (resume here)
 
-- **Milestone H — Hardening (PR #13):** data lifecycle (retention purge of finished tickets, daily demo reset for `"demo": true` tenants only, rate-limit pruning — pg_cron jobs live and verified; functions callable only by pg_cron; ADR-019), email content only to no-training providers (ADR-020), Turnstile on chat (fails closed in production) + stricter CSP (ADR-021), repeated-failure email alerts to the owner, `docs/THREAT_MODEL.md` (STRIDE + OWASP LLM Top 10). Reviews done and fixed. 249 tests. → merge after CI. **Carry to J:** create the real Cloudflare Turnstile widget once the production domain exists (local env uses Cloudflare's public test keys); second alert channel.
-- Then **Milestone I — Evals + model comparison.**
+- **Milestone I — Evals + model comparison (PR open):** 47-case suite (9 categories), deterministic scorer + LLM judge (Groq Qwen, anchored rubric), resumable free-tier runner, report, CI gate (prompt hash, ≥80% pass, zero safety failures). Results: Flash-Lite 98%, gpt-oss-20b 96%, both 0 safety failures → production chain reordered (ADR-022). Evals found false action claims → new outbound guardrail (ADR-023). **Still running on free quota:** Gemini 3.8/3.6/3.5 Flash (15-case sample) and gpt-oss-120b; add with `npm run eval:report` + a small follow-up commit.
+- Then **Milestone J — Production deploy + E2E.** Carry over: real Cloudflare Turnstile widget once the domain exists; second alert channel; publish the Gmail OAuth app (token expires ~Nov 10).
 
 ## Previously in progress
 
@@ -35,7 +36,7 @@ _Last updated: 2026-11-04_
 
 ## Known issues
 
-- Free-tier latency: 503s / rate limits on Gemini 3.8/3.7 add 3–40 s per ticket; chain + waits keep it working. Measure in evals.
+- Free-tier latency: measured p50 model time 2.2 s (20b) / 4.0 s (Flash-Lite); free-tier rate-limit waits come on top.
 - Retrieval recall gap: "my package never arrived" doesn't surface "Delayed shipments" (vocabulary mismatch). Measure in evals; consider query rewriting.
 - gcloud is not on the default PATH; use `/opt/homebrew/share/google-cloud-sdk/bin/gcloud`.
 
@@ -47,4 +48,4 @@ Paste this into a new Claude Code session opened in this folder:
 
 ## Decisions
 
-See `docs/DECISIONS.md` (ADR-001 … ADR-021).
+See `docs/DECISIONS.md` (ADR-001 … ADR-023).

@@ -99,6 +99,30 @@ describe("agent loop", () => {
     });
   });
 
+  it("nudges once when a model ends a turn with no text and no tool call (eval finding)", async () => {
+    const router = scriptedRouter({}, ["", reply("Your order 1042 is delayed.")]);
+    const r = await runAgent(input("olivia.bennett@example.com", "Where is my order #1042?"), {
+      router,
+      repo,
+    });
+    expect(r.outcome).toBe("resolved");
+    const sent = router.requests
+      .at(-1)
+      ?.messages.map((m) => m.content)
+      .join("\n");
+    expect(sent).toMatch(/must finish by calling/);
+  });
+
+  it("a second empty turn is an error, not an infinite loop", async () => {
+    const router = scriptedRouter({}, ["", ""]);
+    const r = await runAgent(input("olivia.bennett@example.com", "Where is my order #1042?"), {
+      router,
+      repo,
+    });
+    expect(r.outcome).toBe("escalated");
+    expect(r.escalation?.reasons).toContain("agent_error");
+  });
+
   it("executes an in-policy duplicate-charge refund exactly once (idempotent)", async () => {
     const refund = call("issue_refund", {
       order_number: "1051",
@@ -265,6 +289,43 @@ describe("agent loop", () => {
     const r = await runAgent(input("olivia.bennett@example.com", "Help"), { router, repo });
     expect(r.outcome).toBe("resolved");
     expect(r.reply).not.toMatch(/marcus/);
+  });
+
+  it("rewrites a reply that claims an action no tool performed (eval finding)", async () => {
+    const router = scriptedRouter({}, [
+      [call("get_orders", { order_number: "#1042" })],
+      reply("Your order is delayed. I’ve started that process for you now."),
+      "Your order is delayed. If it isn't found, we'll open a trace with the carrier.",
+    ]);
+    const r = await runAgent(input("olivia.bennett@example.com", "Where is my order #1042?"), {
+      router,
+      repo,
+    });
+    expect(r.outcome).toBe("resolved");
+    expect(r.reply).not.toMatch(/started that process/);
+    expect(r.trace.find((t) => t.name === "output_validation")?.output).toMatchObject({
+      violations: ["unperformed_action_claim:investigation"],
+    });
+  });
+
+  it("draft mode: a reply describing the proposed refund as done is allowed (approval runs it)", async () => {
+    repo.setRolloutMode(HP, "draft_only");
+    const router = scriptedRouter({ intent: "refund_or_billing" }, [
+      [
+        call("issue_refund", {
+          order_number: "1051",
+          amount_cents: 6400,
+          reason: "duplicate_charge",
+        }),
+      ],
+      reply("I've processed a refund of $64.00 for the duplicate charge."),
+    ]);
+    const r = await runAgent(input("marcus.lee@example.com", "Charged twice for 1051"), {
+      router,
+      repo,
+    });
+    expect(r.actions[0]?.status).toBe("proposed");
+    expect(r.trace.find((t) => t.name === "output_validation")?.output).toMatchObject({ ok: true });
   });
 
   it("stops at the step limit and escalates instead of looping forever", async () => {

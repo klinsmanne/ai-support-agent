@@ -45,8 +45,7 @@ next-env.d.ts
 supabase/.temp
 supabase/.branches
 
-# eval run artifacts (summaries are committed under evals/reports)
-evals/results
+# evals/results/ is committed on purpose: the CI eval gate verifies it (evals/README.md)
 
 # claude code personal settings
 .claude/settings.local.json

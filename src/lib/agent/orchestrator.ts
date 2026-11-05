@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { ToolName } from "../tenants/config.ts";
 import { detectInjectionInThread, wrapUntrusted } from "../guardrails/injection.ts";
 import { maskDeep } from "../guardrails/pii.ts";
+import { claimableTypes } from "../guardrails/claims.ts";
 import { validateReply } from "../guardrails/output.ts";
 import { RouterExhaustedError, type Attempt, type ModelRouter } from "../llm/router.ts";
 import type { ChatMessage, GenerateResult } from "../llm/types.ts";
@@ -300,6 +301,7 @@ export async function runAgent(
   const seenCalls = new Set<string>();
   let searchCount = 0;
   let writeCount = 0;
+  let nudged = false;
 
   try {
     while (!terminal) {
@@ -335,7 +337,18 @@ export async function runAgent(
             citedSlugs: [],
             expectsCustomerReply: false,
           };
-        else throw new AgentLimitError(`model returned no content (finish: ${r.finishReason})`);
+        else if (!nudged && r.finishReason === "stop") {
+          // Some models occasionally end a turn with neither text nor a tool call (found by the
+          // eval suite). One explicit nudge recovers it; a second empty turn is an error.
+          nudged = true;
+          messages.pop();
+          messages.push({
+            role: "user",
+            content:
+              "You must finish by calling send_reply or escalate_to_human (or call another tool first).",
+          });
+          continue;
+        } else throw new AgentLimitError(`model returned no content (finish: ${r.finishReason})`);
         break;
       }
 
@@ -438,6 +451,8 @@ export async function runAgent(
     supportEmail: input.supportEmail ?? settings.support_email ?? null,
     allowedLinkDomains: settings.allowed_link_domains,
     internalIds: [input.tenantId, input.ticketId, input.customerId ?? ""].filter(Boolean),
+    // A reply may only say an action happened if it did (or will, on approving this draft).
+    executedActions: claimableTypes(actions),
   };
   const safeSuggestion = (text: string | null) =>
     text && validateReply(text, replyCtx).ok ? text : null;

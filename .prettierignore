@@ -11,3 +11,5 @@ AGENTS.md
 tenants/*/kb
 tenants/tenant.schema.json
 supabase/seed.sql
+
+evals/REPORT.md

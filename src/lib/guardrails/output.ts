@@ -3,6 +3,7 @@
  * Deterministic checks only — no model in the loop — so a compromised or confused model can't
  * talk its way past them.
  */
+import { unperformedClaims } from "./claims.ts";
 
 export interface ReplyContext {
   /** Random marker embedded in the system prompt; seeing it in output means a prompt leak. */
@@ -13,6 +14,11 @@ export interface ReplyContext {
   /** Internal identifiers (UUIDs etc.) that must never be shown to customers. */
   internalIds: string[];
   maxLength?: number;
+  /**
+   * Action types code actually executed for this ticket. When given, a reply claiming any other
+   * action ("I've refunded you", "I've opened a trace") is blocked (OWASP LLM09).
+   */
+  executedActions?: readonly string[];
 }
 
 export interface ReplyVerdict {
@@ -60,6 +66,10 @@ export function validateReply(reply: string, ctx: ReplyContext): ReplyVerdict {
   }
 
   for (const problem of linkProblems(text, ctx.allowedLinkDomains)) violations.push(problem);
+
+  if (ctx.executedActions)
+    for (const c of unperformedClaims(text, ctx.executedActions))
+      violations.push(`unperformed_action_claim:${c.type}`);
 
   return { ok: violations.length === 0, violations: [...new Set(violations)] };
 }

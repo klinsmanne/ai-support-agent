@@ -116,19 +116,19 @@ describe("rate-limit wait", () => {
 });
 
 describe("buildChain", () => {
-  it("orders Gemini models first, then Groq, skipping providers without keys", () => {
+  it("puts the eval-measured models first, skipping providers without keys (ADR-022)", () => {
     const chain = buildChain({ LLM_PROVIDER: "gemini", GEMINI_API_KEY: "g", GROQ_API_KEY: "q" });
     expect(chain.map((p) => `${p.id}:${p.model}`)).toEqual([
+      "gemini:gemini-3.5-flash-lite",
+      "groq:openai/gpt-oss-20b",
       "gemini:gemini-3.8-flash",
       "gemini:gemini-3.6-flash",
       "groq:openai/gpt-oss-120b",
       "gemini:gemini-3.5-flash",
-      "gemini:gemini-3.5-flash-lite",
-      "groq:openai/gpt-oss-20b",
     ]);
     expect(
       buildChain({ LLM_PROVIDER: "gemini", GROQ_API_KEY: "q" }).map((p) => `${p.id}:${p.model}`),
-    ).toEqual(["groq:openai/gpt-oss-120b", "groq:openai/gpt-oss-20b"]);
+    ).toEqual(["groq:openai/gpt-oss-20b", "groq:openai/gpt-oss-120b"]);
   });
 
   it("noTraining keeps only providers whose terms forbid training on inputs", () => {
