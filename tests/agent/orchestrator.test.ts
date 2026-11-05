@@ -308,6 +308,26 @@ describe("agent loop", () => {
     });
   });
 
+  it("draft mode: a reply describing the proposed refund as done is allowed (approval runs it)", async () => {
+    repo.setRolloutMode(HP, "draft_only");
+    const router = scriptedRouter({ intent: "refund_or_billing" }, [
+      [
+        call("issue_refund", {
+          order_number: "1051",
+          amount_cents: 6400,
+          reason: "duplicate_charge",
+        }),
+      ],
+      reply("I've processed a refund of $64.00 for the duplicate charge."),
+    ]);
+    const r = await runAgent(input("marcus.lee@example.com", "Charged twice for 1051"), {
+      router,
+      repo,
+    });
+    expect(r.actions[0]?.status).toBe("proposed");
+    expect(r.trace.find((t) => t.name === "output_validation")?.output).toMatchObject({ ok: true });
+  });
+
   it("stops at the step limit and escalates instead of looping forever", async () => {
     const steps = Array.from({ length: 20 }, (_, n) => [
       call("get_orders", { order_number: `10${40 + n}` }),

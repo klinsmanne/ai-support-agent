@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { ToolName } from "../tenants/config.ts";
 import { detectInjectionInThread, wrapUntrusted } from "../guardrails/injection.ts";
 import { maskDeep } from "../guardrails/pii.ts";
+import { claimableTypes } from "../guardrails/claims.ts";
 import { validateReply } from "../guardrails/output.ts";
 import { RouterExhaustedError, type Attempt, type ModelRouter } from "../llm/router.ts";
 import type { ChatMessage, GenerateResult } from "../llm/types.ts";
@@ -450,11 +451,8 @@ export async function runAgent(
     supportEmail: input.supportEmail ?? settings.support_email ?? null,
     allowedLinkDomains: settings.allowed_link_domains,
     internalIds: [input.tenantId, input.ticketId, input.customerId ?? ""].filter(Boolean),
-    // A reply may only say an action happened if it did, or (draft-review mode) if the action is
-    // carried in the draft and runs when a human approves it. Pending approval ≠ done.
-    executedActions: actions
-      .filter((a) => ["executed", "duplicate_ignored", "proposed"].includes(a.status))
-      .map((a) => a.type),
+    // A reply may only say an action happened if it did (or will, on approving this draft).
+    executedActions: claimableTypes(actions),
   };
   const safeSuggestion = (text: string | null) =>
     text && validateReply(text, replyCtx).ok ? text : null;

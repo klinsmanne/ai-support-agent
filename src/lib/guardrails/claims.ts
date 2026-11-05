@@ -40,8 +40,33 @@ const CLAIMS: { type: ClaimType; re: RegExp }[] = [
   },
 ];
 
-/** Typographic apostrophes and quotes count the same as ASCII ones ("I’ve" = "I've"). */
-const normalize = (text: string) => text.normalize("NFKC").replace(/[‘’ʼ]/g, "'");
+/**
+ * Typographic apostrophes count the same as ASCII ones ("I’ve" = "I've"), and invisible format
+ * characters (zero-width spaces, soft hyphens) are removed so "proc\u200Bessed" can't slip past.
+ */
+const normalize = (text: string) =>
+  text
+    .normalize("NFKC")
+    .replace(/\p{Cf}/gu, "")
+    .replace(/[‘’ʼ]/g, "'");
+
+/** Action states a reply may describe as done (see claimableTypes). */
+export const CLAIMABLE_STATUSES = ["executed", "duplicate_ignored", "proposed"] as const;
+
+/**
+ * Action types a reply may truthfully describe as done: executed now, already done earlier
+ * (duplicate_ignored), or proposed in draft-review mode, where approving the draft executes it.
+ * A proposed action only counts when it is the ticket's only pending action, because approval
+ * carries exactly one (the agent is also limited to one account action per ticket).
+ * Pending human approval is not done: the human may deny it.
+ */
+export function claimableTypes(actions: readonly { type: string; status: string }[]): string[] {
+  const pending = actions.filter((a) => a.status === "proposed" || a.status === "pending_approval");
+  return actions
+    .filter((a) => (CLAIMABLE_STATUSES as readonly string[]).includes(a.status))
+    .filter((a) => a.status !== "proposed" || pending.length === 1)
+    .map((a) => a.type);
+}
 
 /**
  * First phrase stated as done. Future/conditional phrasing ("you'll get an email when the refund
@@ -50,11 +75,17 @@ const normalize = (text: string) => text.normalize("NFKC").replace(/[‘’ʼ]/g
 function claimedPhrase(text: string, re: RegExp): string | null {
   const g = new RegExp(re.source, "gi");
   for (const m of text.matchAll(g)) {
-    const before = text.slice(Math.max(0, m.index - 30), m.index);
-    if (/\b(when|once|after|until|as soon as|if)\s+(the\s+|your\s+|it\s+)?$/i.test(before))
+    // Only the claim's own clause counts: "After review, your refund was approved" is a claim, and
+    // "Once again your refund…" is not a condition (security review: openers bypassed the check).
+    const clause = text
+      .slice(Math.max(0, m.index - 30), m.index)
+      .split(/[.!?;,\n]/)
+      .at(-1)!
+      .replace(/\bonce again\b/gi, "");
+    if (/\b(when|once|after|until|as soon as|if)\s+(the\s+|your\s+|it\s+)?$/i.test(clause))
       continue;
     if (
-      /\b(when|once|after|until|as soon as|if)\b[^.]{0,25}$/i.test(before) &&
+      /\b(when|once|after|until|as soon as|if)\b[^.]{0,25}$/i.test(clause) &&
       /\bis\b|\bhas been\b/i.test(m[0])
     )
       continue;

@@ -62,7 +62,10 @@ export class GroqProvider implements LLMProvider {
       json = (await res.json().catch(() => ({}))) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- see above
       if (res.ok) break;
       const message = String(json?.error?.message ?? res.statusText).slice(0, 300);
-      if (attempt < 3 && res.status === 400 && isToolUseFailed(json, message)) continue;
+      // Retry only while a full attempt still fits in the router's deadline (reviews: retries
+      // must not stretch one call to 3× its timeout past the ticket budget).
+      const fits = !req.deadline || Date.now() + req.timeoutMs <= req.deadline;
+      if (attempt < 3 && fits && res.status === 400 && isToolUseFailed(json, message)) continue;
       const kind = res.status === 429 ? classify429(message) : errorKindFromStatus(res.status);
       throw new LLMError(kind, message, this.id, this.model, res.status);
     }
@@ -101,7 +104,7 @@ export class GroqProvider implements LLMProvider {
   }
 }
 
-function isToolUseFailed(
+export function isToolUseFailed(
   json: { error?: { code?: string } } | undefined,
   message: string,
 ): boolean {
@@ -109,7 +112,7 @@ function isToolUseFailed(
   return (
     json?.error?.code === "tool_use_failed" ||
     json?.error?.code === "output_parse_failed" ||
-    /tool call validation failed|parsing failed/i.test(message)
+    /tool call validation failed|failed to parse tool call|output parsing failed/i.test(message)
   );
 }
 

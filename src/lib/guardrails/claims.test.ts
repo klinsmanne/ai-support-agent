@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findClaims, unperformedClaims } from "./claims";
+import { claimableTypes, findClaims, unperformedClaims } from "./claims";
 import { validateReply } from "./output";
 
 describe("action claims", () => {
@@ -30,6 +30,39 @@ describe("action claims", () => {
       "Once your address has been updated, we'll confirm by email.",
     ])
       expect(findClaims(text), text).toEqual([]);
+  });
+});
+
+describe("bypass attempts (security review)", () => {
+  it("an opener like 'Once again' or 'After review,' doesn't turn a claim into a promise", () => {
+    for (const text of [
+      "Once again, your refund has been processed.",
+      "Once again your refund has been processed.",
+      "When you wrote in, your refund has been processed.",
+      "After review, your refund was approved.",
+    ])
+      expect(unperformedClaims(text, [])[0]?.type, text).toBe("refund");
+  });
+
+  it("invisible characters inside a word don't hide the claim", () => {
+    expect(unperformedClaims("I've proc\u200Bessed a re\u00ADfund for you.", [])[0]?.type).toBe(
+      "refund",
+    );
+  });
+});
+
+describe("claimableTypes", () => {
+  const a = (type: string, status: string) => ({ type, status });
+  it("counts executed, already-done and single proposed actions, never pending approval", () => {
+    expect(claimableTypes([a("refund", "executed")])).toEqual(["refund"]);
+    expect(claimableTypes([a("refund", "duplicate_ignored")])).toEqual(["refund"]);
+    expect(claimableTypes([a("refund", "proposed")])).toEqual(["refund"]);
+    expect(claimableTypes([a("refund", "pending_approval")])).toEqual([]);
+    expect(claimableTypes([a("refund", "denied")])).toEqual([]);
+  });
+
+  it("ignores proposed actions when more than one is pending (approval carries only one)", () => {
+    expect(claimableTypes([a("refund", "proposed"), a("address_change", "proposed")])).toEqual([]);
   });
 });
 

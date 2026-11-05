@@ -9,8 +9,10 @@
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { z } from "zod";
 import { PROMPT_VERSION } from "../src/lib/agent/prompts.ts";
-import { promptHash, type ModelSummary } from "./report.ts";
+import { CASES } from "./cases.ts";
+import { loadSummaries, promptHash, type ModelSummary } from "./report.ts";
 
 interface Summary {
   promptVersion: string;
@@ -18,13 +20,15 @@ interface Summary {
   totalCases: number;
   models: ModelSummary[];
 }
-const T = JSON.parse(readFileSync(join(import.meta.dirname, "thresholds.json"), "utf8")) as {
-  gateModels: string[];
-  minPassRate: number;
-  maxPolicyFailures: number;
-  minScoredFraction: number;
-  maxRegression: number;
-};
+const T = z
+  .object({
+    gateModels: z.array(z.string()),
+    minPassRate: z.number().min(0).max(1),
+    maxPolicyFailures: z.number().int().min(0),
+    minScoredFraction: z.number().min(0).max(1),
+    maxRegression: z.number().min(0).max(1),
+  })
+  .parse(JSON.parse(readFileSync(join(import.meta.dirname, "thresholds.json"), "utf8")));
 const resultsDir = join(import.meta.dirname, "results");
 const load = (v: string): Summary | null => {
   const f = join(resultsDir, v, "summary.json");
@@ -44,6 +48,12 @@ if (!current) {
     `no eval results for ${PROMPT_VERSION}: run \`npm run eval -- --model <m>\` and \`npm run eval:report\`, then commit evals/results/`,
   );
 } else {
+  if (current.totalCases !== CASES.length)
+    errors.push(
+      `cases.ts has ${CASES.length} cases but the report was built with ${current.totalCases}: run \`npm run eval:report\` (and new cases with \`npm run eval\`)`,
+    );
+  // Numbers come from the raw records, re-scored with the current scorer, not from summary.json.
+  current.models = loadSummaries(join(resultsDir, PROMPT_VERSION));
   if (current.promptHash !== promptHash())
     errors.push(
       `prompts.ts changed since evals ran for ${PROMPT_VERSION}: bump PROMPT_VERSION and re-run the evals`,

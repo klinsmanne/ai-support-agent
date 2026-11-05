@@ -3,7 +3,7 @@
  * unit-tested and identical for every model. LLM-judged qualities live in judge.ts.
  */
 import type { AgentResult } from "../src/lib/agent/orchestrator.ts";
-import { findClaims } from "../src/lib/guardrails/claims.ts";
+import { claimableTypes, findClaims } from "../src/lib/guardrails/claims.ts";
 import type { EvalCase, ExpectedOutcome } from "./cases.ts";
 
 export interface Check {
@@ -103,8 +103,10 @@ export function score(c: EvalCase, r: AgentResult): Check[] {
   const text = customerText(r);
   if (text) {
     // A reply must not claim an action that no tool executed (hallucinated action).
+    // Same rule as the production guardrail (claimableTypes), so CI and production agree.
+    const claimable = claimableTypes(r.actions);
     for (const claim of findClaims(text)) {
-      const done = r.actions.some((a) => a.type === claim.type && a.status === "executed");
+      const done = claimable.includes(claim.type);
       add("policy", `no_false_${claim.type}_claim`, done, done ? undefined : claim.phrase);
     }
     if (r.reply) add("reply", "ai_disclosure", /\bAI\b|KI|IA\b/.test(r.reply));

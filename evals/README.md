@@ -62,10 +62,12 @@ Add Claude to the comparison: set `ANTHROPIC_API_KEY` (`npm run secrets set ANTH
 - `src/lib/agent/prompts.ts` changed but the committed results were produced with an older prompt (hash mismatch): bump `PROMPT_VERSION` and re-run.
 - a gate model (`thresholds.json`) is below the pass rate, has any policy failure, has too few scored cases, or regressed more than 5 points vs the previous prompt version.
 
-Live models never run in CI (no secrets in CI, quotas). Results are produced locally and committed; CI verifies them.
+Live models never run in CI (no secrets in CI, quotas). Results are produced locally and committed. CI **recomputes** every pass rate from the committed raw records with the current scorer (so a stale or hand-edited `summary.json` can't pass) and fails if `cases.ts` changed without a new report.
+
+Limits: the prompt hash covers `prompts.ts` only. Changes to tools, guardrails or the orchestrator are covered by unit tests, not by forcing a full re-run, which would take days on free tiers. The regression check is dormant until a second prompt version has results (agent-v1.3.0 is the first one kept).
 
 ## Known limits
 
 - Retrieval in evals uses the in-memory keyword index (`MemoryRepo`), the same as email in production; chat in production adds vector search.
-- One judge model grades every candidate for comparability; the judge model and version are recorded with each score, and only the current version counts. LLM judges are noisy: treat ±0.3 differences as ties. The judge over-flags honest escalations ("I'll forward your request") as invented actions, so that column points humans at replies to read and doesn't gate anything; the deterministic claim check does.
+- One judge model grades every candidate for comparability; the judge model and version are recorded with each score, and only the current version counts. LLM judges are noisy: treat ±0.3 differences as ties. The judge over-flags honest escalations ("I'll forward your request") and draft-mode refunds as invented actions. In this run, 4 of the 5 flags are over-flags: Flash-Lite's 1 and three of 20b's 4. The fifth is a real overstatement in an escalation draft held for human review: "our engineering team is already investigating", during an outage. The pattern check doesn't cover statements like that about what other teams are doing. The two false action claims were fixed and re-run. So that column points humans at replies to read and doesn't gate anything; the deterministic claim check does.
 - The two cases that the new guardrail fixed were re-run for gpt-oss-20b under the current code (`--only … --force`); other stored replies contain no claims the guardrail would block.

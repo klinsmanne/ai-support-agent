@@ -20,7 +20,7 @@ import { estimateCostUsd } from "../src/lib/llm/pricing.ts";
 import { ModelRouter, RouterExhaustedError, retryHintMs } from "../src/lib/llm/router.ts";
 import { loadTenantFolders } from "../src/lib/tenants/load.ts";
 import { CASES, SAMPLE_IDS, type EvalCase } from "./cases.ts";
-import { JUDGE_VERSION, judge } from "./judge.ts";
+import { JUDGE_MODEL, JUDGE_VERSION, judge } from "./judge.ts";
 import { compact, expand, type CompactResult } from "./compact.ts";
 import { casePassed, score, type Check } from "./score.ts";
 
@@ -63,9 +63,7 @@ const { values } = parseArgs({
     "judge-only": { type: "boolean", default: false },
     judge: {
       type: "string",
-      // Not one of the compared models, and on its own free-tier quota, so grading never eats the
-      // candidates' daily requests (Gemini Flash allows only a few per day).
-      default: process.env.EVAL_JUDGE ?? "groq:qwen/qwen3.8-27b",
+      default: process.env.EVAL_JUDGE ?? JUDGE_MODEL,
     },
   },
 });
@@ -111,17 +109,6 @@ const slug = values.model.replace(/[/:]/g, "__");
 const dir = join(import.meta.dirname, "results", PROMPT_VERSION);
 mkdirSync(dir, { recursive: true });
 const file = join(dir, `${slug}.jsonl`);
-const done = new Set(
-  existsSync(file) && !values.force
-    ? readFileSync(file, "utf8")
-        .split("\n")
-        .filter(Boolean)
-        .map((l) => JSON.parse(l) as EvalRecord)
-        .filter((r) => r.status === "scored")
-        .map((r) => r.caseId)
-    : [],
-);
-
 const readRecords = (): EvalRecord[] =>
   existsSync(file)
     ? readFileSync(file, "utf8")
@@ -130,13 +117,25 @@ const readRecords = (): EvalRecord[] =>
         .map((l) => JSON.parse(l) as EvalRecord)
     : [];
 
+// Same rule as the report: the latest record per case decides whether it's done.
+const done = new Set(
+  values.force
+    ? []
+    : [...new Map(readRecords().map((r) => [r.caseId, r])).values()]
+        .filter((r) => r.status === "scored")
+        .map((r) => r.caseId),
+);
+
 if (values["judge-only"]) {
   const latest = new Map(readRecords().map((r) => [r.caseId, r]));
   const pending = [...latest.values()].filter(
     (r) =>
       r.status === "scored" &&
       r.reply &&
-      (!r.judge || "error" in r.judge || r.judgeVersion !== JUDGE_VERSION),
+      (!r.judge ||
+        "error" in r.judge ||
+        r.judgeVersion !== JUDGE_VERSION ||
+        r.judge.judgeModel !== values.judge),
   );
   console.log(`${values.model}: judging ${pending.length} stored replies`);
   for (const rec of pending) {

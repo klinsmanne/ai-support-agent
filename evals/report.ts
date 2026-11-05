@@ -8,7 +8,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PROMPT_VERSION } from "../src/lib/agent/prompts.ts";
 import { CASES, SAMPLE_IDS, SAMPLED_MODELS, type Category } from "./cases.ts";
-import { JUDGE_VERSION } from "./judge.ts";
+import { JUDGE_MODEL, JUDGE_VERSION } from "./judge.ts";
 import type { EvalRecord } from "./run.ts";
 import { expand } from "./compact.ts";
 import { casePassed, score, type Check } from "./score.ts";
@@ -65,12 +65,20 @@ const quantile = (xs: number[], q: number) => {
 };
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
-export function summarize(records: EvalRecord[], modelId?: string): ModelSummary {
+/**
+ * @param fallbackModel model id to use when the file has no records (derived from its name).
+ */
+export function summarize(records: EvalRecord[], fallbackModel = "?"): ModelSummary {
+  const model = records[0]?.model ?? fallbackModel;
+  const sampled = SAMPLED_MODELS.includes(model);
+  const target = sampled ? SAMPLE_IDS.length : CASES.length;
   const latest = new Map<string, EvalRecord>();
   for (const r of records) latest.set(r.caseId, r); // files are append-only: last one wins
-  // Re-score with the current scorer so results stay comparable after scorer fixes.
+  // Re-score with the current scorer so results stay comparable after scorer fixes. A sampled
+  // model is judged only on the sample, even if older runs scored other cases.
   const all = [...latest.values()]
     .filter((r) => CASES.some((c) => c.id === r.caseId))
+    .filter((r) => !sampled || SAMPLE_IDS.includes(r.caseId))
     .map((r) => {
       if (r.status !== "scored" || !r.result) return r;
       const checks = score(
@@ -92,15 +100,12 @@ export function summarize(records: EvalRecord[], modelId?: string): ModelSummary
     cat.total++;
     if (r.passed) cat.pass++;
   }
-  // Only grades from the current judge version count: mixing judges isn't comparable.
+  // Only grades from the current judge version and model count: mixing judges isn't comparable.
   const judged = scored
-    .filter((r) => r.judgeVersion === JUDGE_VERSION)
+    .filter((r) => r.judgeVersion === JUDGE_VERSION && r.judge?.judgeModel === JUDGE_MODEL)
     .map((r) => r.judge)
     .filter((j): j is Record<string, number | boolean> => !!j && !("error" in j));
   const inSample = scored.filter((r) => SAMPLE_IDS.includes(r.caseId));
-  const model = modelId ?? all[0]?.model ?? "?";
-  const sampled = SAMPLED_MODELS.includes(model);
-  const target = sampled ? SAMPLE_IDS.length : CASES.length;
   return {
     model,
     cases: all.length,
@@ -146,18 +151,17 @@ export function summarize(records: EvalRecord[], modelId?: string): ModelSummary
   };
 }
 
-function main() {
-  if (!existsSync(dir)) {
-    console.error(
-      `No results for ${PROMPT_VERSION}. Run: npm run eval -- --model <provider:model>`,
-    );
-    process.exit(1);
-  }
-  const models = readdirSync(dir)
+/**
+ * Summaries for every model in a results folder, recomputed from the raw records (the CI gate uses
+ * this too, so a stale or hand-edited summary.json can't pass). Full-suite models sort before
+ * sampled ones: a pass rate on 15 cases isn't comparable with one on 47.
+ */
+export function loadSummaries(resultsDir: string): ModelSummary[] {
+  return readdirSync(resultsDir)
     .filter((f) => f.endsWith(".jsonl"))
     .map((f) =>
       summarize(
-        readFileSync(join(dir, f), "utf8")
+        readFileSync(join(resultsDir, f), "utf8")
           .split("\n")
           .filter(Boolean)
           .map((l) => JSON.parse(l) as EvalRecord),
@@ -167,7 +171,22 @@ function main() {
           .replace("__", "/"),
       ),
     )
-    .sort((a, b) => b.passRate - a.passRate || a.policyFailures - b.policyFailures);
+    .sort(
+      (a, b) =>
+        Number(a.sampled) - Number(b.sampled) ||
+        b.passRate - a.passRate ||
+        a.policyFailures - b.policyFailures,
+    );
+}
+
+function main() {
+  if (!existsSync(dir)) {
+    console.error(
+      `No results for ${PROMPT_VERSION}. Run: npm run eval -- --model <provider:model>`,
+    );
+    process.exit(1);
+  }
+  const models = loadSummaries(dir);
 
   writeFileSync(
     join(dir, "summary.json"),
@@ -211,7 +230,7 @@ function main() {
             pending
               .map((s) => `${s.model}${s.sampled ? " *(sample)*" : ""} ${s.scored}/${s.target}`)
               .join(" · ") +
-            ". Runs resume automatically and are added here when complete; no numbers are shown until a model has scored 90% of its cases.",
+            ". They resume with \`npm run eval -- --model <m>\` (resumable) and are added here when complete; no numbers are shown until a model has scored 90% of its cases.",
           "",
         ]
       : []),

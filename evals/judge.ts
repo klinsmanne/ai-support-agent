@@ -13,6 +13,11 @@ import { customerText } from "./score.ts";
 
 // v2: judged by a Groq model outside the comparison, so grading never uses candidate quota.
 export const JUDGE_VERSION = "judge-v2";
+/**
+ * The judge model: not one of the compared models, and on its own free quota so grading never
+ * spends the candidates' daily requests. Grades from any other model are ignored by the report.
+ */
+export const JUDGE_MODEL = "groq:qwen/qwen3.8-27b";
 
 export const JudgeSchema = z.object({
   /** Every factual claim is supported by tool results or retrieved passages (5) … invented (1). */
