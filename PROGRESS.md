@@ -14,6 +14,7 @@ _Last updated: 2026-11-05_
 - **Milestone D — Agent (PR #9, merged).**
 - **Milestone E — Channels (PR #10, merged):** Gmail + chat pipeline, DMARC-aligned sender auth, at-most-once processing.
 - **Milestone G — Landing page (PR #12, merged).**
+- **Milestone J — Production deploy + E2E (PRs #15–#16, merged):** live at https://ai-support-ops-agent.vercel.app; pg_cron Gmail polling with lease; published Gmail app; Turnstile; post-deploy smoke tests (ADR-024).
 - **Milestone I — Evals + model comparison (PR #14, merged):** 47-case suite, LLM judge, CI gate; Flash-Lite 98% / gpt-oss-20b 96%, 0 safety failures → production chain (ADR-022); claimed-action guardrail (ADR-023).
 - **Milestone H — Hardening (PR #13, merged):** data lifecycle (pg_cron), no-training email providers, Turnstile + CSP, failure alerts, THREAT_MODEL.
 - **Milestone F — Dashboard (PR #11, merged):** invite-only sign-in, read-only public demo (viewer privacy in RLS), trace view, approvals that execute the pending action first, settings + kill switch, KPI metrics.
@@ -21,16 +22,13 @@ _Last updated: 2026-11-05_
 
 ## In progress (resume here)
 
-- **Milestone J — Production deploy + E2E (PR open):** live at https://ai-support-ops-agent.vercel.app (Vercel Hobby, deploys from GitHub). Gmail polled every 2 min by pg_cron + pg_net (secret in Supabase Vault), Gmail OAuth app published (non-expiring token), real Turnstile widget, Supabase auth URLs set. Live-verified: email answered in 6.7 s, chat answers after Turnstile, demo dashboard. `npm run e2e` (8 smoke tests) runs after each production deploy. `docs/DEPLOYMENT.md`, ADR-024. **Open:** second alert channel; Gemini Flash / 120b eval results (follow-up).
-- Then **final docs** (README, ONBOARDING_RUNBOOK, HANDOFF, CASE_STUDY, DEMO_SCRIPT, INTERVIEW_PREP, guides, final checklist).
-
-## Previously in progress
-
-- **Milestone D — Agent (PR #9):** provider layer (Gemini/Groq/Claude-ready, fallback chain, circuit breaker, rate-limit waits), agent loop, 8 least-privilege tools, policy engine, guardrails, MemoryRepo + SupabaseRepo. 130 tests; all 10 spec scenarios pass live. Awaiting subagent reviews → fix → merge.
+- **Final docs (PR open):** README, ONBOARDING_RUNBOOK, HANDOFF, CASE_STUDY, DEMO_SCRIPT (2/5/15 min), INTERVIEW_PREP, CHANNEL_ADAPTERS, WHAT_I_LEARNED, BEYOND_THE_SPEC, FINAL_CHECKLIST, 4 beginner guides; 5 new project commands; scoped dashboard invites (ADR-025); live-test fixes (Groq JSON-generation fallback, injection reason kept when triage fails). Live tests 2026-11-05: normal, angry + refund, injection, second tenant, email — all pass (see docs/FINAL_CHECKLIST.md).
+- **Open:** Gemini Flash (15-case sample) + gpt-oss-120b eval results (free quota; `npm run eval:report` + small commit); second alert channel; Dependabot PRs #2–#6.
 
 ## Next
 
-- Milestone E — Channels: email pipeline (Gmail OAuth, poll via pg_cron, filters/dedupe/threading, SPF/DKIM/DMARC) + chat widget (verification, Turnstile)
+- Merge the final-docs PR; add the pending eval results when the free-quota runs finish
+- Optional: second alert channel; record the 2-minute demo video (docs/DEMO_SCRIPT.md)
 - Dependabot PRs #2–#6 (TypeScript 7 and ESLint 10 are majors — test before merging)
 
 ## Known issues
@@ -47,4 +45,4 @@ Paste this into a new Claude Code session opened in this folder:
 
 ## Decisions
 
-See `docs/DECISIONS.md` (ADR-001 … ADR-024).
+See `docs/DECISIONS.md` (ADR-001 … ADR-025).

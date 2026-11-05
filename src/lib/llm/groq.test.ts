@@ -22,6 +22,10 @@ describe("Groq adapter retries (eval finding)", () => {
   it("recognises Groq's malformed-generation errors and nothing else", () => {
     expect(isToolUseFailed({ error: { code: "tool_use_failed" } }, "")).toBe(true);
     expect(isToolUseFailed({ error: { code: "output_parse_failed" } }, "")).toBe(true);
+    expect(isToolUseFailed({ error: { code: "json_validate_failed" } }, "")).toBe(true);
+    expect(isToolUseFailed(undefined, "Failed to generate JSON. Please adjust your prompt.")).toBe(
+      true,
+    );
     expect(isToolUseFailed(undefined, "Bad request: model not found")).toBe(false);
   });
 
@@ -31,6 +35,17 @@ describe("Groq adapter retries (eval finding)", () => {
     const r = await new GroqProvider("m", "k").generate(req);
     expect(r.text).toBe("hi");
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("a generation failure that persists is retryable, so the router tries the next model", async () => {
+    // A fresh Response per call: a body can only be read once.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async () => toolUseFailed()),
+    );
+    const err = await new GroqProvider("m", "k").generate(req).catch((e) => e);
+    expect(err.kind).toBe("unavailable");
+    expect(err.retryable).toBe(true);
   });
 
   it("does not retry when another attempt wouldn't fit in the deadline", async () => {

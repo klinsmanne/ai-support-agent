@@ -23,7 +23,7 @@ Built as a forward-deployed engagement for a fictional client, from discovery to
 | Cost per AI-handled ticket | **$0.0005–$0.0026** at paid list prices, against a $7.80 human baseline                                                                                              |
 | Unauthorized refunds       | **0**: limits, ownership and one-action-per-ticket are checked in code and in an atomic database function                                                            |
 | Safety found by evals      | The evals caught a model claiming actions it never took ("I've opened a trace"); a guardrail now blocks such replies, and it flags none of 212 stored honest replies |
-| Tests                      | 284 unit, integration and database tests, 8 live smoke tests after every deploy, and an eval gate in CI                                                              |
+| Tests                      | 285 unit, integration and database tests, 8 live smoke tests after every deploy, and an eval gate in CI                                                              |
 
 The client's goals from [discovery](docs/DISCOVERY.md) are 50%+ of tickets auto-resolved, first response under 2 minutes, under $3.50 per ticket, and zero unauthorized refunds. The [case study](docs/CASE_STUDY.md) shows how the design meets each one, and which numbers are measured versus projected.
 
