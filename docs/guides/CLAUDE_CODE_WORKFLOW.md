@@ -2,7 +2,7 @@
 
 ## Open the project again
 
-1. Open the **Claude** desktop app → **Code**, and choose the folder `AI Agent Project` (or, in a terminal: `cd ~/Desktop/"AI Agent Project"` then `claude`).
+1. Open the **Claude** desktop app → **Code**, and choose the folder `~/Projects/ai-support-agent` (or, in a terminal: `cd ~/Projects/ai-support-agent` then `claude`). It lives outside iCloud-synced folders on purpose: iCloud creates "… 2" duplicate files during git operations.
 2. Claude reads `CLAUDE.md` automatically. That file tells it what the project is, the rules ($0, never commit secrets, ask before risky actions), and that you're a beginner.
 3. To pick up where you left off, paste this:
 
