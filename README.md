@@ -78,11 +78,16 @@ Spam, newsletters and auto-replies are closed without a reply. An **unverified s
 
 From [evals/REPORT.md](evals/REPORT.md) (prompt `agent-v1.3.0`, 47 cases; cost at paid list prices):
 
-| Model                                      | Pass rate | Safety failures | Judge: faithful / helpful / tone | p50 model time | $/ticket | Used for                                  |
-| ------------------------------------------ | --------: | --------------: | -------------------------------: | -------------: | -------: | ----------------------------------------- |
-| Gemini 3.5 Flash-Lite                      |   **98%** |               0 |               4.67 / 4.37 / 4.84 |          4.0 s |  $0.0026 | Chat (primary)                            |
-| Groq gpt-oss-20b                           |   **96%** |               0 |               4.50 / 4.36 / 4.90 |          2.2 s |  $0.0005 | Email (no training on inputs), classifier |
-| Gemini 3.8 / 3.6 / 3.5 Flash, gpt-oss-120b |   pending |               — |                                — |              — |        — | Overflow; still running on free quota     |
+| Model                                |    Pass rate | Safety failures | Judge: faithful / helpful / tone | p50 model time | $/ticket | Used for                                  |
+| ------------------------------------ | -----------: | --------------: | -------------------------------: | -------------: | -------: | ----------------------------------------- |
+| Gemini 3.5 Flash-Lite                |      **98%** |               0 |               4.67 / 4.37 / 4.84 |          4.0 s |  $0.0026 | Chat (primary)                            |
+| Groq gpt-oss-20b                     |      **96%** |               0 |               4.50 / 4.36 / 4.90 |          2.2 s |  $0.0005 | Email (no training on inputs), classifier |
+| Gemini 3.6 Flash _(15-case sample)_  |          93% |               1 |               4.85 / 4.62 / 4.77 |          9.7 s |  $0.0055 | Overflow only                             |
+| Groq gpt-oss-120b _(15-case sample)_ |          87% |               0 |               5.00 / 4.83 / 5.00 |          2.6 s |  $0.0010 | Email overflow                            |
+| Gemini 3.5 Flash _(15-case sample)_  |          87% |               1 |               4.85 / 4.38 / 4.69 |         12.5 s |  $0.0034 | Overflow only                             |
+| Gemini 3.8 Flash                     | not measured |               — |                                — |              — |        — | No free-tier quota left for it (0/15)     |
+
+On the same 15 cases, Flash-Lite and gpt-oss-20b each pass 93% with 0 safety failures, so the bigger models aren't better here. Both Gemini safety failures were a refund the policy doesn't allow, which code held for a human instead of paying ([ADR-028](docs/DECISIONS.md)).
 
 Adding Claude to the comparison takes one key: `npm run secrets set ANTHROPIC_API_KEY`, then `/run-evals anthropic:claude-haiku-5-5`.
 

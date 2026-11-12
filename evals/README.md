@@ -9,7 +9,7 @@ How we know the agent is good enough to ship, and which model to run it on.
 | Gemini 3.5 Flash-Lite |              **98%** |               0 |                4.67 / 4.37 / 4.84 |          4.0 s |                    $0.0026 |
 | Groq gpt-oss-20b      |              **96%** |               0 |                4.50 / 4.36 / 4.90 |          2.2 s |                    $0.0005 |
 
-**Decision (ADR-022):** chat runs Flash-Lite first, email runs gpt-oss-20b (it doesn't train on inputs). Gemini 3.8/3.6/3.5 Flash and gpt-oss-120b (15-case sample) are still running on free-tier quota, shared with the live demo and get added to the report as they finish.
+**Decision (ADR-022):** chat runs Flash-Lite first, email runs gpt-oss-20b (it doesn't train on inputs). The bigger models ran a fixed 15-case sample on free-tier quota. On it, Gemini 3.6 Flash passed 93% and gpt-oss-120b and Gemini 3.5 Flash 87%, against 93% for both production models. Both Gemini models had 1 safety failure, so the production chain stays as it is (ADR-028). Gemini 3.8 Flash couldn't be measured: every attempt hit its free daily quota.
 
 **What the evals found and changed:**
 
