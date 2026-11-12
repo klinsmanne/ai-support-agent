@@ -27,14 +27,12 @@ _Last updated: 2026-11-05_
   - portfolio pack (PR #18): `/demo` 2-minute narrated video, PRD, business case (ROI/TCO/SWOT), Python + DuckDB SQL eval analysis with a CI job, reproducible video pipeline;
   - the repo is public, with `main` protected by a ruleset (PRs + 4 required checks) and secret scanning, push protection and Dependabot security fixes on;
   - escalation notifications (instant + daily digest, PR #21), live-tested.
-- **Open:**
-  - Gemini Flash (15-case sample) and gpt-oss-120b eval results (free quota; `npm run eval:report` + small commit);
-  - nothing else: the second alert channel (ntfy) and the dependency upgrades are done (ADR-026).
+- **Shipped 2026-11-12:** competitive landscape and SWOT in discovery (PR #30); Dependabot batch and the minimatch advisory fix (PR #31); bigger-model eval results (ADR-028).
+- **Open:** nothing. Gemini 3.8 Flash can't be measured on its free quota (ADR-028).
 - **Career pack** (private, outside the repo): `~/Desktop/New Job App/2026/Portfolio Career Pack/`. Start with `00_START_HERE.md`.
 
 ## Next
 
-- Add the pending eval results when the free-quota runs finish
 - Optional: re-record the demo narration in your own voice (`.voice-samples/RECORD_THIS.md`, `scripts/demo-video/`)
 
 ## Known issues

@@ -6,7 +6,6 @@ Every item from the original request, with its status and the evidence. Verified
 
 - ✅ done and verified
 - 🟡 done, with a stated limit
-- ⏳ still running
 
 ## Live end-to-end tests (production, 2026-11-05)
 
@@ -23,18 +22,18 @@ Every item from the original request, with its status and the evidence. Verified
 
 ## Milestones
 
-| Milestone                              | Status | Evidence                                                                                                                   |
-| -------------------------------------- | :----: | -------------------------------------------------------------------------------------------------------------------------- |
-| a. Project setup                       |   ✅   | PR #1: CLAUDE.md, `.claude/settings.json`, hooks, CI, PROGRESS.md                                                          |
-| b. Discovery + solution design         |   ✅   | PR #7: [DISCOVERY.md](DISCOVERY.md), [SOLUTION_DESIGN.md](SOLUTION_DESIGN.md)                                              |
-| c. Database, RLS, seed, pgvector       |   ✅   | PR #8: 20 tables, RLS on all, two seeded tenants, embedded KB; `tests/db/`                                                 |
-| d. Agent, tools, guardrails, providers |   ✅   | PR #9: 8 tools, policy engine, guardrails, Gemini/Groq/Claude-ready adapters                                               |
-| e. Channels (email + chat)             |   ✅   | PR #10: Gmail pipeline (filter, dedupe, threading, DMARC) + chat widget; live email answered                               |
-| f. Dashboard                           |   ✅   | PR #11: tickets + filters, trace view, approve/edit/reject, settings (rollout, limits, kill switch), metrics, usage        |
-| g. Landing page                        |   ✅   | PR #12: problem, solution, architecture, live chat, demo email button, sample orders, live numbers                         |
-| h. Security hardening + threat model   |   ✅   | PR #13: [THREAT_MODEL.md](THREAT_MODEL.md), data lifecycle, Turnstile, CSP, alerts                                         |
-| i. Evals + model comparison            |   🟡   | PR #14: 47 cases, judge, CI gate; Flash-Lite 98%, gpt-oss-20b 96%. Gemini Flash (15-case sample) and 120b ⏳ on free quota |
-| j. Production deploy + E2E             |   ✅   | PRs #15–#16: live on Vercel, pg_cron polling, published Gmail app, Turnstile, smoke tests                                  |
+| Milestone                              | Status | Evidence                                                                                                                                                                                       |
+| -------------------------------------- | :----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a. Project setup                       |   ✅   | PR #1: CLAUDE.md, `.claude/settings.json`, hooks, CI, PROGRESS.md                                                                                                                              |
+| b. Discovery + solution design         |   ✅   | PR #7: [DISCOVERY.md](DISCOVERY.md), [SOLUTION_DESIGN.md](SOLUTION_DESIGN.md)                                                                                                                  |
+| c. Database, RLS, seed, pgvector       |   ✅   | PR #8: 20 tables, RLS on all, two seeded tenants, embedded KB; `tests/db/`                                                                                                                     |
+| d. Agent, tools, guardrails, providers |   ✅   | PR #9: 8 tools, policy engine, guardrails, Gemini/Groq/Claude-ready adapters                                                                                                                   |
+| e. Channels (email + chat)             |   ✅   | PR #10: Gmail pipeline (filter, dedupe, threading, DMARC) + chat widget; live email answered                                                                                                   |
+| f. Dashboard                           |   ✅   | PR #11: tickets + filters, trace view, approve/edit/reject, settings (rollout, limits, kill switch), metrics, usage                                                                            |
+| g. Landing page                        |   ✅   | PR #12: problem, solution, architecture, live chat, demo email button, sample orders, live numbers                                                                                             |
+| h. Security hardening + threat model   |   ✅   | PR #13: [THREAT_MODEL.md](THREAT_MODEL.md), data lifecycle, Turnstile, CSP, alerts                                                                                                             |
+| i. Evals + model comparison            |   ✅   | PR #14: 47 cases, judge, CI gate; Flash-Lite 98%, gpt-oss-20b 96%. Bigger models on a 15-case sample: 3.6 Flash 93%, 120b 87%, 3.5 Flash 87%; 3.8 Flash not measurable on free quota (ADR-028) |
+| j. Production deploy + E2E             |   ✅   | PRs #15–#16: live on Vercel, pg_cron polling, published Gmail app, Turnstile, smoke tests                                                                                                      |
 
 ## The product
 
@@ -86,7 +85,7 @@ Every item from the original request, with its status and the evidence. Verified
 | ----------------------------------------------------------------------------------------------------- | :----: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 40+ eval cases across all categories with expected outcomes                                           |   ✅   | 47 cases (`evals/cases.ts`)                                                                                                                                                |
 | Metrics: classification, tool use, resolve-vs-escalate, policy, faithfulness, reply quality           |   ✅   | `evals/score.ts` + `evals/judge.ts`                                                                                                                                        |
-| Model comparison table + recommendation; easy to add Claude                                           |   🟡   | [evals/REPORT.md](../evals/REPORT.md), ADR-022; larger Gemini Flash + 120b ⏳; Claude: one key                                                                             |
+| Model comparison table + recommendation; easy to add Claude                                           |   ✅   | [evals/REPORT.md](../evals/REPORT.md), ADR-022, ADR-028; Claude: one key                                                                                                   |
 | Unit/integration tests (tools, guardrails, tenants, channels)                                         |   ✅   | 289 tests (`npm test`)                                                                                                                                                     |
 | Versioned prompt; evals in CI block regressions                                                       |   ✅   | `PROMPT_VERSION`; eval gate (prompt hash, thresholds, recomputed from raw records)                                                                                         |
 | Traces in the dashboard; free-tier usage with warnings; alerts                                        |   ✅   | Trace view; "Free-tier usage today"; repeated-failure email alerts                                                                                                         |
@@ -123,5 +122,5 @@ Every item from the original request, with its status and the evidence. Verified
 
 - ✅ Done since: escalation notifications to the client's team, instant for urgent and a daily digest (ADR-027); second alert channel (ntfy push, ADR-026); dependency upgrades (React 19.3.1, ESLint 10, TypeScript 6.0, @types/node 26; TypeScript 7 deferred until linting supports it).
 
-- ⏳ **Eval results** for Gemini 3.8/3.6/3.5 Flash (15-case sample) and gpt-oss-120b: running on free quota. Add them with `npm run eval:report` and a small commit.
+- ✅ **Eval results** for the bigger models (15-case sample) are in the report (ADR-028). Gemini 3.8 Flash stays unmeasured: its free daily quota ran out on every attempt.
 - **Gmail OAuth verification by Google:** needed only beyond 100 users or for a client's own domain.

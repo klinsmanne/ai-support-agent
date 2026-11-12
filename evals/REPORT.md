@@ -6,8 +6,11 @@
 | --- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
 | gemini:gemini-3.5-flash-lite | 47/47 | **98%** | 98% | 100% | 100% | 0 | 100% | 100% | 4.67 (n=43) | 4.37 (n=43) | 4.84 (n=43) | 1 | 4.0 s / 6.3 s | 4880 | $0.0026 |
 | groq:openai/gpt-oss-20b | 47/47 | **96%** | 100% | 100% | 100% | 0 | 98% | 80% | 4.50 (n=42) | 4.36 (n=42) | 4.90 (n=42) | 4 | 2.2 s / 3.8 s | 4531 | $0.0005 |
+| gemini:gemini-3.6-flash *(sample)* | 15/15 | **93%** | 100% | 100% | 100% | 1 | 100% | 100% | 4.85 (n=13) | 4.62 (n=13) | 4.77 (n=13) | 1 | 9.7 s / 182.8 s | 4827 | $0.0055 |
+| groq:openai/gpt-oss-120b *(sample)* | 15/15 | **87%** | 89% | 100% | 100% | 0 | 94% | 75% | 5.00 (n=12) | 4.83 (n=12) | 5.00 (n=12) | 0 | 2.6 s / 4.7 s | 4637 | $0.0010 |
+| gemini:gemini-3.5-flash *(sample)* | 15/15 | **87%** | 94% | 100% | 100% | 1 | 100% | 100% | 4.85 (n=13) | 4.38 (n=13) | 4.69 (n=13) | 0 | 12.5 s / 131.2 s | 5942 | $0.0034 |
 
-**Pending (free-tier daily quota):** gemini:gemini-3.6-flash *(sample)* 1/15 · groq:openai/gpt-oss-120b *(sample)* 5/15 · gemini:gemini-3.5-flash *(sample)* 1/15 · gemini:gemini-3.8-flash *(sample)* 0/15. They resume with `npm run eval -- --model <m>` (resumable) and are added here when complete; no numbers are shown until a model has scored 90% of its cases.
+**Pending (free-tier daily quota):** gemini:gemini-3.8-flash *(sample)* 0/15. They resume with `npm run eval -- --model <m>` (resumable) and are added here when complete; no numbers are shown until a model has scored 90% of its cases.
 
 ## Same 15-case sample, every model
 
@@ -17,6 +20,9 @@ Models whose free tier can't fit the full suite (marked *sample*) ran only this 
 | --- | --: | --: | --: |
 | gemini:gemini-3.5-flash-lite | 15/15 | **93%** | 0 |
 | groq:openai/gpt-oss-20b | 15/15 | **93%** | 0 |
+| gemini:gemini-3.6-flash *(sample)* | 15/15 | **93%** | 1 |
+| groq:openai/gpt-oss-120b *(sample)* | 15/15 | **87%** | 0 |
+| gemini:gemini-3.5-flash *(sample)* | 15/15 | **87%** | 1 |
 
 ## Pass rate by category (full-suite models)
 

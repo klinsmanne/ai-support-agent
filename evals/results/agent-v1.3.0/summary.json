@@ -2,7 +2,7 @@
   "promptVersion": "agent-v1.3.0",
   "promptHash": "839e4c5ef4c7cfcc",
   "totalCases": 47,
-  "generatedAt": "2026-11-05T19:15:17.332Z",
+  "generatedAt": "2026-11-12T17:36:02.117Z",
   "models": [
     {
       "model": "gemini:gemini-3.5-flash-lite",
@@ -192,99 +192,42 @@
     },
     {
       "model": "gemini:gemini-3.6-flash",
-      "cases": 2,
-      "scored": 1,
-      "infra": 1,
-      "passRate": 1,
+      "cases": 15,
+      "scored": 15,
+      "infra": 0,
+      "passRate": 0.9333333333333333,
       "sampled": true,
       "target": 15,
-      "complete": false,
+      "complete": true,
       "sample": {
-        "pass": 1,
-        "total": 1,
-        "policyFailures": 0
+        "pass": 14,
+        "total": 15,
+        "policyFailures": 1
       },
       "metrics": {
         "outcome": {
-          "pass": 1,
-          "total": 1
-        },
-        "classification": {
-          "pass": 1,
-          "total": 1
-        },
-        "tool_use": {
-          "pass": 1,
-          "total": 1
-        },
-        "policy": {
-          "pass": 9,
-          "total": 9
-        },
-        "reply": {
-          "pass": 3,
-          "total": 3
-        }
-      },
-      "categories": {
-        "easy": {
-          "pass": 1,
-          "total": 1
-        }
-      },
-      "policyFailures": 0,
-      "judge": {
-        "faithfulness": 0,
-        "helpfulness": 0,
-        "tone": 0,
-        "unperformedClaims": 0,
-        "judged": 0
-      },
-      "latency": {
-        "p50": 9734,
-        "p95": 9734
-      },
-      "tokensPerTicket": 6137,
-      "costPerTicketUsd": 0.006883
-    },
-    {
-      "model": "groq:openai/gpt-oss-120b",
-      "cases": 6,
-      "scored": 5,
-      "infra": 1,
-      "passRate": 1,
-      "sampled": true,
-      "target": 15,
-      "complete": false,
-      "sample": {
-        "pass": 5,
-        "total": 5,
-        "policyFailures": 0
-      },
-      "metrics": {
-        "outcome": {
-          "pass": 6,
-          "total": 6
-        },
-        "classification": {
-          "pass": 3,
-          "total": 3
-        },
-        "tool_use": {
-          "pass": 4,
-          "total": 4
-        },
-        "policy": {
           "pass": 18,
           "total": 18
         },
+        "classification": {
+          "pass": 8,
+          "total": 8
+        },
+        "tool_use": {
+          "pass": 6,
+          "total": 6
+        },
+        "policy": {
+          "pass": 38,
+          "total": 39
+        },
         "reply": {
-          "pass": 10,
-          "total": 10
+          "pass": 18,
+          "total": 18
         },
         "retrieval": {
-          "pass": 2,
-          "total": 2
+          "pass": 4,
+          "total": 4
         }
       },
       "categories": {
@@ -295,81 +238,242 @@
         "hard": {
           "pass": 2,
           "total": 2
+        },
+        "angry": {
+          "pass": 2,
+          "total": 2
+        },
+        "ambiguous": {
+          "pass": 1,
+          "total": 1
+        },
+        "multilingual": {
+          "pass": 2,
+          "total": 2
+        },
+        "spam": {
+          "pass": 1,
+          "total": 1
+        },
+        "injection": {
+          "pass": 2,
+          "total": 2
+        },
+        "cross_tenant": {
+          "pass": 1,
+          "total": 1
+        },
+        "policy_edge": {
+          "pass": 0,
+          "total": 1
         }
       },
-      "policyFailures": 0,
+      "policyFailures": 1,
       "judge": {
-        "faithfulness": 0,
-        "helpfulness": 0,
-        "tone": 0,
-        "unperformedClaims": 0,
-        "judged": 0
+        "faithfulness": 4.846153846153846,
+        "helpfulness": 4.615384615384615,
+        "tone": 4.769230769230769,
+        "unperformedClaims": 1,
+        "judged": 13
       },
       "latency": {
-        "p50": 3530,
-        "p95": 4715
+        "p50": 9734,
+        "p95": 182844
       },
-      "tokensPerTicket": 5960.2,
-      "costPerTicketUsd": 0.0012385999999999999
+      "tokensPerTicket": 4826.533333333334,
+      "costPerTicketUsd": 0.005500533333333333
     },
     {
-      "model": "gemini:gemini-3.5-flash",
-      "cases": 2,
-      "scored": 1,
-      "infra": 1,
-      "passRate": 0,
+      "model": "groq:openai/gpt-oss-120b",
+      "cases": 15,
+      "scored": 15,
+      "infra": 0,
+      "passRate": 0.8666666666666667,
       "sampled": true,
       "target": 15,
-      "complete": false,
+      "complete": true,
       "sample": {
-        "pass": 0,
-        "total": 1,
+        "pass": 13,
+        "total": 15,
         "policyFailures": 0
       },
       "metrics": {
         "outcome": {
-          "pass": 0,
-          "total": 1
+          "pass": 16,
+          "total": 18
         },
         "classification": {
-          "pass": 1,
-          "total": 1
+          "pass": 8,
+          "total": 8
         },
         "tool_use": {
-          "pass": 1,
-          "total": 1
+          "pass": 6,
+          "total": 6
         },
         "policy": {
-          "pass": 1,
-          "total": 1
+          "pass": 39,
+          "total": 39
+        },
+        "reply": {
+          "pass": 15,
+          "total": 16
+        },
+        "retrieval": {
+          "pass": 3,
+          "total": 4
         }
       },
       "categories": {
         "easy": {
+          "pass": 3,
+          "total": 3
+        },
+        "hard": {
+          "pass": 2,
+          "total": 2
+        },
+        "angry": {
+          "pass": 2,
+          "total": 2
+        },
+        "ambiguous": {
+          "pass": 1,
+          "total": 1
+        },
+        "multilingual": {
           "pass": 0,
+          "total": 2
+        },
+        "spam": {
+          "pass": 1,
+          "total": 1
+        },
+        "injection": {
+          "pass": 2,
+          "total": 2
+        },
+        "cross_tenant": {
+          "pass": 1,
+          "total": 1
+        },
+        "policy_edge": {
+          "pass": 1,
           "total": 1
         }
       },
       "policyFailures": 0,
       "judge": {
-        "faithfulness": 0,
-        "helpfulness": 0,
-        "tone": 0,
+        "faithfulness": 5,
+        "helpfulness": 4.833333333333333,
+        "tone": 5,
         "unperformedClaims": 0,
-        "judged": 0
+        "judged": 12
       },
       "latency": {
-        "p50": 12865,
-        "p95": 12865
+        "p50": 2582,
+        "p95": 4715
       },
-      "tokensPerTicket": 3589,
-      "costPerTicketUsd": 0.001479
+      "tokensPerTicket": 4636.866666666667,
+      "costPerTicketUsd": 0.0009968000000000002
+    },
+    {
+      "model": "gemini:gemini-3.5-flash",
+      "cases": 15,
+      "scored": 15,
+      "infra": 0,
+      "passRate": 0.8666666666666667,
+      "sampled": true,
+      "target": 15,
+      "complete": true,
+      "sample": {
+        "pass": 13,
+        "total": 15,
+        "policyFailures": 1
+      },
+      "metrics": {
+        "outcome": {
+          "pass": 17,
+          "total": 18
+        },
+        "classification": {
+          "pass": 8,
+          "total": 8
+        },
+        "tool_use": {
+          "pass": 6,
+          "total": 6
+        },
+        "policy": {
+          "pass": 40,
+          "total": 41
+        },
+        "reply": {
+          "pass": 16,
+          "total": 16
+        },
+        "retrieval": {
+          "pass": 4,
+          "total": 4
+        }
+      },
+      "categories": {
+        "easy": {
+          "pass": 2,
+          "total": 3
+        },
+        "hard": {
+          "pass": 2,
+          "total": 2
+        },
+        "angry": {
+          "pass": 2,
+          "total": 2
+        },
+        "ambiguous": {
+          "pass": 1,
+          "total": 1
+        },
+        "multilingual": {
+          "pass": 2,
+          "total": 2
+        },
+        "spam": {
+          "pass": 1,
+          "total": 1
+        },
+        "injection": {
+          "pass": 2,
+          "total": 2
+        },
+        "cross_tenant": {
+          "pass": 1,
+          "total": 1
+        },
+        "policy_edge": {
+          "pass": 0,
+          "total": 1
+        }
+      },
+      "policyFailures": 1,
+      "judge": {
+        "faithfulness": 4.846153846153846,
+        "helpfulness": 4.384615384615385,
+        "tone": 4.6923076923076925,
+        "unperformedClaims": 0,
+        "judged": 13
+      },
+      "latency": {
+        "p50": 12517,
+        "p95": 131172
+      },
+      "tokensPerTicket": 5941.8,
+      "costPerTicketUsd": 0.003352066666666667
     },
     {
       "model": "gemini:gemini-3.8-flash",
-      "cases": 4,
+      "cases": 15,
       "scored": 0,
-      "infra": 4,
+      "infra": 15,
       "passRate": 0,
       "sampled": true,
       "target": 15,
